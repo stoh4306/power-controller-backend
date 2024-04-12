@@ -2,8 +2,12 @@
 
 int main(int argc, char** argv) 
 {
-    std::string portName = argv[1];
+    std::string portNamePrefix = argv[1];
     int sleepUTime = atoi(argv[2]);
+    int minByte = atoi(argv[3]);
+
+    setPortNamePrefix(portNamePrefix);
+    setMinimumBytes(minByte);
 
     int result = initialize_connection();
     if (result > 0)

@@ -15,6 +15,8 @@
 #include <unistd.h> // write(), read(), close()
 
 #include <dirent.h> // To find serial port
+#include <thread>
+#include <chrono>
 
 #define SUCCESS                 0
 #define ERR_OPEN_PORT           1
@@ -27,8 +29,22 @@
 
 int serial_port_ = 0;
 std::string portName_ = "";
-std::string portNamePrefix_ = "ttyUSB";
+std::string portNamePrefix_;
 char read_buf_[256];
+int minimumBytesToRead_ = 0;
+int reconnectIntervalInSec = 5;
+bool isReconnecting = false;
+
+void setPortNamePrefix(std::string prefix)
+{
+    portNamePrefix_ = prefix;
+    std::cout << "prefix=" << portNamePrefix_ << std::endl;
+}
+
+void setMinimumBytes(int minByte)
+{
+    minimumBytesToRead_ = minByte;
+}
 
 int find_serial_port(std::string& portName)
 {
@@ -100,8 +116,8 @@ int configure_serial_port(int & serial_port)
     // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    tty.c_cc[VTIME] = 10;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
-    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 0;    // Wait for up to VTIME deciseconds, returning as soon as any data is received.
+    tty.c_cc[VMIN] = minimumBytesToRead_;      // Minimum bytes => 3
 
     // Set in/out baud rate to be 9600
     cfsetispeed(&tty, B9600);
@@ -145,7 +161,8 @@ int initialize_connection()
     if (serial_port_ > 0)
     {
         old_serial_port = serial_port_;
-        close(serial_port_);
+        result = close(serial_port_);
+        std::cout << "close port result = " << result << std::endl;
     }
 
     if (open_serial_port(serial_port_, newPortName.c_str()) == false)
@@ -166,6 +183,8 @@ int initialize_connection()
             return ERR_CONFIGURE_PORT;
         }
 
+        std::cout << "configure port done" << std::endl;
+
         // Clear serial buffer
         result = clearSerialIOBuffer();
         if (result > 0)
@@ -174,6 +193,7 @@ int initialize_connection()
                 << serial_port_ << " " << portName_ << std::endl; 
             return ERR_CLEAR_SERIAL_BUFFER;
         }
+        std::cout << "clear serial buffer done" << std::endl;
 
         return SUCCESS;
     } 
@@ -210,9 +230,26 @@ int readSerialPort(std::string& mesg)
     // Here we assume we received ASCII data, but you might be sending raw bytes (in that case, don't try and
     // print it to the screen like this!)
     printf("Read %i bytes. Received message: %s\n", num_bytes, read_buf_);
+    for (int i = 0; i < num_bytes; ++i )
+    {
+        std::cout << "[" << (unsigned int)read_buf_[i] << "] ";
+    }
+    std::cout << std::endl;
     //*/
 
     return SUCCESS;
+}
+
+int reconnect()
+{
+    while(1)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        if (initialize_connection() == SUCCESS)
+        {
+            isReconnecting = false;
+        }
+    }
 }
 
 int set_command(std::string cmdStr, std::string& response, int sleepUTime)
@@ -220,14 +257,28 @@ int set_command(std::string cmdStr, std::string& response, int sleepUTime)
     int result = 0;
     result = writeSerialPort(cmdStr);
 
-    //if (result > 0) return result;
+    if (result > 0)
+    {
+        while(1)
+        {
+            result = initialize_connection();
+            if ( result == SUCCESS )   
+            {
+                std::cout << "Init done" << std::endl;
+                return result;
+            }
+            sleep(reconnectIntervalInSec);
+        }
+    } 
+    else
+    {
+        //usleep(sleepUTime);
 
-    usleep(sleepUTime);
-
-    result = readSerialPort(response);
-    //if (result > 0) return result;
-    
-    return result;
+        result = readSerialPort(response);
+        //if (result > 0) return result;
+        
+        return result;
+    }
 }
 
 int closePort()
