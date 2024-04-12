@@ -26,14 +26,17 @@
 #define ERR_READ_SERIAL_PORT    5
 #define ERR_FINDING_SERIAL_PORT 6
 #define ERR_PORT_NOT_FOUND      7
+#define ERR_NO_RESPONSE         8
+#define ERR_INCOMPLETE_RESPONSE 9
 
 int serial_port_ = 0;
 std::string portName_ = "";
 std::string portNamePrefix_;
 char read_buf_[256];
+int maxReadTime_ = 0;
 int minimumBytesToRead_ = 0;
-int reconnectIntervalInSec = 5;
-bool isReconnecting = false;
+int reconnectIntervalInSec_ = 5;
+bool isReconnecting_ = false;
 
 void setPortNamePrefix(std::string prefix)
 {
@@ -44,6 +47,11 @@ void setPortNamePrefix(std::string prefix)
 void setMinimumBytes(int minByte)
 {
     minimumBytesToRead_ = minByte;
+}
+
+void setMaxReadTime(int deciSec)
+{
+    maxReadTime_ = deciSec;
 }
 
 int find_serial_port(std::string& portName)
@@ -116,7 +124,7 @@ int configure_serial_port(int & serial_port)
     // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    tty.c_cc[VTIME] = 0;    // Wait for up to VTIME deciseconds, returning as soon as any data is received.
+    tty.c_cc[VTIME] = maxReadTime_;    // Wait for up to VTIME deciseconds, returning as soon as any data is received.
     tty.c_cc[VMIN] = minimumBytesToRead_;      // Minimum bytes => 3
 
     // Set in/out baud rate to be 9600
@@ -235,21 +243,10 @@ int readSerialPort(std::string& mesg)
         std::cout << "[" << (unsigned int)read_buf_[i] << "] ";
     }
     std::cout << std::endl;
+    mesg = std::string(read_buf_);
     //*/
 
     return SUCCESS;
-}
-
-int reconnect()
-{
-    while(1)
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-        if (initialize_connection() == SUCCESS)
-        {
-            isReconnecting = false;
-        }
-    }
 }
 
 int set_command(std::string cmdStr, std::string& response, int sleepUTime)
@@ -259,26 +256,41 @@ int set_command(std::string cmdStr, std::string& response, int sleepUTime)
 
     if (result > 0)
     {
+        int initResult = 0;
         while(1)
         {
-            result = initialize_connection();
-            if ( result == SUCCESS )   
+            initResult = initialize_connection();
+            if ( initResult == SUCCESS )   
             {
                 std::cout << "Init done" << std::endl;
-                return result;
+                break;
             }
-            sleep(reconnectIntervalInSec);
+            sleep(reconnectIntervalInSec_);
         }
+        return result;
     } 
     else
     {
         //usleep(sleepUTime);
 
         result = readSerialPort(response);
-        //if (result > 0) return result;
+        if (result > 0) return result;
+
+        if (response.length() == 0)
+        {
+            // Sending command was ok, but failed to get response from MCU
+            result = ERR_NO_RESPONSE;
+            std::cerr << "ERROR, no response from MCU" << std::endl;
+        }
+        else if (*(response.end()-1) != '\n')
+        {
+            result = ERR_INCOMPLETE_RESPONSE;
+            std::clog << "Warning, incomplete response. It doesn't end with the line feed" << std::endl;
+        }
         
         return result;
     }
+
 }
 
 int closePort()
