@@ -7,13 +7,23 @@ package main
 import "C"
 
 import (
-	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"unsafe"
+
+	"github.com/gin-gonic/gin"
 )
 
+type CmdResult struct {
+	Cmd string `json:"cmd"`
+	Res string `json:"result"`
+}
+
+var pwCtrlBe unsafe.Pointer
+
+// Create an instance of power-controller cpp backend
 func main() {
 	args := os.Args
 
@@ -39,7 +49,8 @@ func main() {
 	minByte, _ := strconv.Atoi(args[3])
 
 	// Create an instance of power-controller cpp backend
-	pwCtrlBe := C.createPwctrlBackend()
+	pwCtrlBe = C.createPwctrlBackend()
+	defer C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
 
 	// Set port name prefix
 	C.setPortNamePrefix(unsafe.Pointer(pwCtrlBe), portNamePrefix)
@@ -57,32 +68,82 @@ func main() {
 		return
 	}
 
-	keyReader := bufio.NewReader(os.Stdin)
-	chars := make([]byte, 255)
+	router := gin.Default()
+
+	router.GET("/mesg", readPort)
+	router.GET("/mesg/:cmd", writePort)
+
+	router.Run(":8080")
+
+	/*
+		keyReader := bufio.NewReader(os.Stdin)
+		chars := make([]byte, 255)
+		mesg := C.CString(string(chars))
+		defer C.free(unsafe.Pointer(mesg))
+
+		for {
+			fmt.Print("CMD :")
+			cmdMesg, _ := keyReader.ReadString('\n')
+
+			if cmdMesg[:1] == "r" {
+				result = int(C.readSerialPort(unsafe.Pointer(pwCtrlBe), mesg, 256))
+				fmt.Printf("Mesg : %v", C.GoString(mesg))
+			} else if cmdMesg[:1] == "w" {
+				tmpCmd := cmdMesg[1:]
+				cmdStr := C.CString(tmpCmd)
+				result = int(C.set_command(unsafe.Pointer(pwCtrlBe), cmdStr, mesg, 256, 100))
+				fmt.Printf("Mesg : %v", C.GoString(mesg))
+				C.free(unsafe.Pointer(cmdStr))
+			} else if cmdMesg[:1] == "q" {
+				//C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
+				break
+			} else {
+				fmt.Printf("Unknown command : %v", cmdMesg[:1])
+			}
+		}
+		//*/
+
+	//// Destroy the instance of power-controller cpp backend
+	//C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
+}
+
+func readPort(c *gin.Context) {
+	chars := make([]byte, 64)
 	mesg := C.CString(string(chars))
 	defer C.free(unsafe.Pointer(mesg))
 
-	for {
-		fmt.Print("CMD :")
-		cmdMesg, _ := keyReader.ReadString('\n')
+	result := int(C.readSerialPort(unsafe.Pointer(pwCtrlBe), mesg, 64))
+	fmt.Printf("Mesg : %v", C.GoString(mesg))
 
-		if cmdMesg[:1] == "r" {
-			result = int(C.readSerialPort(unsafe.Pointer(pwCtrlBe), mesg, 256))
-			fmt.Printf("Mesg : %v", C.GoString(mesg))
-		} else if cmdMesg[:1] == "w" {
-			tmpCmd := cmdMesg[1:]
-			cmdStr := C.CString(tmpCmd)
-			result = int(C.set_command(unsafe.Pointer(pwCtrlBe), cmdStr, mesg, 256, 100))
-			fmt.Printf("Mesg : %v", C.GoString(mesg))
-			C.free(unsafe.Pointer(cmdStr))
-		} else if cmdMesg[:1] == "q" {
-			//C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
-			break
-		} else {
-			fmt.Printf("Unknown command : %v", cmdMesg[:1])
-		}
+	var response CmdResult
+	response.Cmd = "read"
+	response.Res = C.GoString(mesg)
+
+	if result == 0 {
+		c.IndentedJSON(http.StatusOK, response)
+	} else {
+		c.IndentedJSON(http.StatusInternalServerError, response)
 	}
+}
 
-	// Destroy the instance of power-controller cpp backend
-	C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
+func writePort(c *gin.Context) {
+	chars := make([]byte, 64)
+	mesg := C.CString(string(chars))
+	defer C.free(unsafe.Pointer(mesg))
+
+	tmpCmd := c.Param("cmd")
+	cmdStr := C.CString(tmpCmd)
+	result := int(C.set_command(unsafe.Pointer(pwCtrlBe), cmdStr, mesg, 64, 100))
+	fmt.Printf("Mesg : %v", C.GoString(mesg))
+	C.free(unsafe.Pointer(cmdStr))
+
+	var response CmdResult
+	response.Cmd = tmpCmd
+	response.Res = C.GoString(mesg)
+
+	if result == 0 {
+		c.IndentedJSON(http.StatusOK, response)
+	} else {
+		c.IndentedJSON(http.StatusInternalServerError, response)
+	}
 }
