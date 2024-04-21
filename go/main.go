@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -19,6 +20,12 @@ import (
 type CmdResult struct {
 	Cmd string `json:"cmd"`
 	Res string `json:"result"`
+}
+
+type McuResponse struct {
+	data      string `json:"data"`
+	state     string `json:"state"`
+	exception string `json:"exception"`
 }
 
 var pwCtrlBe unsafe.Pointer
@@ -70,8 +77,9 @@ func main() {
 
 	router := gin.Default()
 
-	router.GET("/mesg", readPort)
-	router.GET("/mesg/:cmd", writePort)
+	router.GET("/set/:id/:cmd", setPower)
+	router.GET("/initialize", initialize)
+	router.GET("/get/:id", getPower)
 
 	router.Run(":8080")
 
@@ -105,6 +113,101 @@ func main() {
 
 	//// Destroy the instance of power-controller cpp backend
 	//C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
+}
+
+func setPower(c *gin.Context) {
+	chars := make([]byte, 64)
+	mesg := C.CString(string(chars))
+	defer C.free(unsafe.Pointer(mesg))
+
+	paramId := c.Param("id")
+	paramCmd := c.Param("cmd")
+	log.Printf("cmd=%v, bmid=%v", paramCmd, paramId)
+
+	tmpCmd := paramCmd + paramId
+	cmdStr := C.CString(tmpCmd)
+
+	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
+	fmt.Printf("Mesg : %v", C.GoString(mesg))
+	C.free(unsafe.Pointer(cmdStr))
+
+	var tmpResponse CmdResult
+	tmpResponse.Cmd = tmpCmd
+	tmpResponse.Res = C.GoString(mesg)
+
+	var response McuResponse
+
+	if result == 0 {
+		response.data = "true"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusOK, response)
+	} else {
+		response.data = "false"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusInternalServerError, response)
+	}
+}
+
+func getPower(c *gin.Context) {
+	chars := make([]byte, 64)
+	mesg := C.CString(string(chars))
+	defer C.free(unsafe.Pointer(mesg))
+
+	paramId := c.Param("id")
+	log.Printf("cmd=power-check, bmid=%v", paramId)
+
+	tmpCmd := "C" + paramId
+	cmdStr := C.CString(tmpCmd)
+
+	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
+	fmt.Printf("Mesg : %v", C.GoString(mesg))
+	C.free(unsafe.Pointer(cmdStr))
+
+	var tmpresponse CmdResult
+	tmpresponse.Cmd = tmpCmd
+	tmpresponse.Res = C.GoString(mesg)
+
+	var response McuResponse
+
+	if result == 0 {
+		response.data = "true"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusOK, response)
+	} else {
+		response.data = "false"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusInternalServerError, response)
+	}
+}
+
+func initialize(c *gin.Context) {
+	chars := make([]byte, 64)
+	mesg := C.CString(string(chars))
+	defer C.free(unsafe.Pointer(mesg))
+
+	result := int(C.initialize_connection(pwCtrlBe))
+
+	var tmpresponse CmdResult
+	tmpresponse.Cmd = "initialize"
+	tmpresponse.Res = strconv.Itoa(result)
+
+	var response McuResponse
+
+	if result == 0 {
+		response.data = "true"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusOK, response)
+	} else {
+		response.data = "false"
+		response.state = "success"
+		response.exception = ""
+		c.IndentedJSON(http.StatusInternalServerError, response)
+	}
 }
 
 func readPort(c *gin.Context) {
