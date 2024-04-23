@@ -1,7 +1,7 @@
 package main
 
 // #cgo CFLAGS: -I.
-// #cgo LDFLAGS: -L/home/stoh/Codes/power-controller-backend/go -lpwctrlbe
+// #cgo LDFLAGS: -L. -lpwctrlbe
 // #include "./cpp/pwctrl-wrapper.h"
 // #include <stdlib.h>
 import "C"
@@ -23,12 +23,29 @@ type CmdResult struct {
 }
 
 type McuResponse struct {
-	data      string `json:"data"`
-	state     string `json:"state"`
-	exception string `json:"exception"`
+	Data           bool   `json:"data"`
+	State          string `json:"state"`
+	ElapsedSeconds int    `json:"elapsedSeconds"`
+}
+
+type McuResponseFail struct {
+	State     string `json:"state"`
+	Message   string `json:"message"`
+	ErrorType string `json:"errorType"`
+}
+
+type McuResponseAllInOne struct {
+	Data             string `json:"data"`
+	State            string `json:"state"`
+	Message          string `json:"message"`
+	ElapsedSeconds   string `json:"elapsedSeconds"`
+	ErrorType        string `json:"errorType"`
+	ErrorDescription string `json:"errorDescription"`
+	Debug            string `json:"debug"`
 }
 
 var pwCtrlBe unsafe.Pointer
+var healthStatus int
 
 // Create an instance of power-controller cpp backend
 func main() {
@@ -70,6 +87,7 @@ func main() {
 
 	// Initialize connection
 	result := int(C.initialize_connection(unsafe.Pointer(pwCtrlBe)))
+	healthStatus = result
 	if result > 0 {
 		fmt.Println("ERROR, failed to initialize connection")
 		return
@@ -122,31 +140,45 @@ func setPower(c *gin.Context) {
 
 	paramId := c.Param("id")
 	paramCmd := c.Param("cmd")
-	log.Printf("cmd=%v, bmid=%v", paramCmd, paramId)
-
 	tmpCmd := paramCmd + paramId
+	log.Printf("cmd=%v", tmpCmd)
+
 	cmdStr := C.CString(tmpCmd)
+	defer C.free(unsafe.Pointer(cmdStr))
 
 	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
-	fmt.Printf("Mesg : %v", C.GoString(mesg))
-	C.free(unsafe.Pointer(cmdStr))
+	//fmt.Printf("Mesg : %v", C.GoString(mesg))
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
 	tmpResponse.Res = C.GoString(mesg)
 
+	mcuCode := 0
+	if len(tmpResponse.Res) > 0 {
+		mcuCode, _ = strconv.Atoi(tmpResponse.Res[:1])
+	}
+
 	var response McuResponse
+	response.ElapsedSeconds = 0
+
+	if mcuCode == 0 || mcuCode == 2 {
+		response.Data = false
+	} else if mcuCode == 1 || mcuCode == 3 {
+		response.Data = true
+	} else {
+		response.Data = false
+	}
 
 	if result == 0 {
-		response.data = "true"
-		response.state = "success"
-		response.exception = ""
+		response.State = "success"
 		c.IndentedJSON(http.StatusOK, response)
 	} else {
-		response.data = "false"
-		response.state = "success"
-		response.exception = ""
-		c.IndentedJSON(http.StatusInternalServerError, response)
+		response.State = "fail"
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "Error"
+		failResponse.ErrorType = "Unclassified"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	}
 }
 
@@ -156,31 +188,44 @@ func getPower(c *gin.Context) {
 	defer C.free(unsafe.Pointer(mesg))
 
 	paramId := c.Param("id")
-	log.Printf("cmd=power-check, bmid=%v", paramId)
-
 	tmpCmd := "C" + paramId
 	cmdStr := C.CString(tmpCmd)
+	defer C.free(unsafe.Pointer(cmdStr))
+
+	log.Printf("cmd=%v", tmpCmd)
 
 	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
-	fmt.Printf("Mesg : %v", C.GoString(mesg))
-	C.free(unsafe.Pointer(cmdStr))
+	//fmt.Printf("Mesg : %v", C.GoString(mesg))
 
 	var tmpresponse CmdResult
 	tmpresponse.Cmd = tmpCmd
 	tmpresponse.Res = C.GoString(mesg)
 
+	mcuCode := 0
+	if len(tmpresponse.Res) > 0 {
+		mcuCode, _ = strconv.Atoi(tmpresponse.Res[:1])
+	}
+
 	var response McuResponse
+	response.ElapsedSeconds = 0
+
+	if mcuCode == 0 || mcuCode == 2 {
+		response.Data = false
+	} else if mcuCode == 1 || mcuCode == 3 {
+		response.Data = true
+	} else {
+		response.Data = false
+	}
 
 	if result == 0 {
-		response.data = "true"
-		response.state = "success"
-		response.exception = ""
+		response.State = "success"
 		c.IndentedJSON(http.StatusOK, response)
 	} else {
-		response.data = "false"
-		response.state = "success"
-		response.exception = ""
-		c.IndentedJSON(http.StatusInternalServerError, response)
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "Error"
+		failResponse.ErrorType = "Unclassified"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	}
 }
 
@@ -198,15 +243,19 @@ func initialize(c *gin.Context) {
 	var response McuResponse
 
 	if result == 0 {
-		response.data = "true"
-		response.state = "success"
-		response.exception = ""
+		response.Data = true
+		response.State = "success"
+		response.ElapsedSeconds = 0
 		c.IndentedJSON(http.StatusOK, response)
 	} else {
-		response.data = "false"
-		response.state = "success"
-		response.exception = ""
-		c.IndentedJSON(http.StatusInternalServerError, response)
+		//response.Data = false
+		//response.State = "fail"
+		//response.ElapsedSeconds = 0
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "Error"
+		failResponse.ErrorType = "Unclassified"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	}
 }
 
@@ -236,9 +285,10 @@ func writePort(c *gin.Context) {
 
 	tmpCmd := c.Param("cmd")
 	cmdStr := C.CString(tmpCmd)
+	defer C.free(unsafe.Pointer(cmdStr))
+
 	result := int(C.set_command(unsafe.Pointer(pwCtrlBe), cmdStr, mesg, 64, 100))
 	fmt.Printf("Mesg : %v", C.GoString(mesg))
-	C.free(unsafe.Pointer(cmdStr))
 
 	var response CmdResult
 	response.Cmd = tmpCmd
