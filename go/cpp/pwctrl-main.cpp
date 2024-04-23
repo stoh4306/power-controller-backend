@@ -52,12 +52,12 @@ int main(int argc, char** argv)
         if (cmdMesg.substr(0,1) == "r")
         {
             readSerialPort(pwCtrlBe, mesg, sizeof(mesg));
-            printf("mesg=%s\n", mesg);
+            //printf("mesg=%s\n", mesg);
         }
         else if (cmdMesg.substr(0,1) == "w")
         {
             result = set_command(pwCtrlBe, cmdMesg.substr(1,cmdMesg.length()).c_str(), mesg, sizeof(mesg), sleepUTime);
-            printf("mesg=%s\n", mesg);
+            //printf("mesg=%s\n", mesg);
         }
         else if (cmdMesg.substr(0,1) == "c")
         {

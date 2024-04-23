@@ -13,6 +13,8 @@
 #define ERR_PORT_NOT_FOUND      7
 #define ERR_NO_RESPONSE         8
 #define ERR_INCOMPLETE_RESPONSE 9
+#define ERR_FAIL_POWER_ONOFF    10
+#define ERR_UNKNOWN_CMD_WRONG_RACKNUM 11
 
 class PwCtrlBackend
 {

@@ -194,17 +194,17 @@ int PwCtrlBackend::writeSerialPort(std::string mesg)
     {
         // NOTE : This is for cgo. Not needed in c/c++
         mesg[mesg.length()-1] = '\r';
-        std::cout << "line feed deleted in command string" << std::endl;
+        std::clog << "line feed deleted in command string" << std::endl;
     }
     else
     {
         mesg = mesg + "\r";
     }
 
-    std::cout << mesg.length() << " " << mesg << std::endl;
-    for (int i = 0; i < mesg.length(); ++i)
-        std::cout << "[" << (unsigned int)mesg[i] << "] ";
-    std::cout << std::endl;
+    //std::cout << mesg.length() << " " << mesg << std::endl;
+    //for (int i = 0; i < mesg.length(); ++i)
+    //    std::cout << "[" << (unsigned int)mesg[i] << "] ";
+    //std::cout << std::endl;
 
     int result = write(serial_port_, mesg.c_str(), mesg.length());
     if (result < 0)
@@ -220,7 +220,7 @@ int PwCtrlBackend::readSerialPort(std::string& mesg)
     memset(read_buf_, '\0', sizeof(read_buf_));
 
     // Read bytes. The behaviour of read() (e.g. does it block?,
-    // how long does it block for?) depends on the configuration
+    // how long does it block for?) depends on the configuration    
     // settings above, specifically VMIN and VTIME
     int num_bytes = read(serial_port_, &read_buf_, sizeof(read_buf_));
 
@@ -232,12 +232,14 @@ int PwCtrlBackend::readSerialPort(std::string& mesg)
 
     // Here we assume we received ASCII data, but you might be sending raw bytes (in that case, don't try and
     // print it to the screen like this!)
-    printf("Read %i bytes. Received message: %s\n", num_bytes, read_buf_);
-    for (int i = 0; i < num_bytes; ++i )
-    {
-        std::cout << "[" << (unsigned int)read_buf_[i] << "] ";
-    }
-    std::cout << std::endl;
+    printf("Read %i bytes. ", num_bytes );
+    if (num_bytes > 0) 
+        printf("Received message: %c\n", read_buf_[0]);
+    //for (int i = 0; i < num_bytes; ++i )
+    //{
+    //    std::cout << "[" << (unsigned int)read_buf_[i] << "] ";
+    //}
+    //std::cout << std::endl;
     mesg = std::string(read_buf_);
     //*/
 
@@ -257,7 +259,7 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
             initResult = initialize_connection();
             if ( initResult == SUCCESS )   
             {
-                std::cout << "Init done" << std::endl;
+                std::cout << "Initialization done" << std::endl;
                 break;
             }
             sleep(reconnectIntervalInSec_);
@@ -266,8 +268,6 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
     } 
     else
     {
-        //usleep(sleepUTime);
-
         result = readSerialPort(response);
         if (result > 0) return result;
 
@@ -275,14 +275,23 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
         {
             // Sending command was ok, but failed to get response from MCU
             result = ERR_NO_RESPONSE;
-            std::cerr << "ERROR, no response from MCU" << std::endl;
+            std::clog << "ERROR, no response from MCU" << std::endl;
         }
         else if (*(response.end()-1) != '\n')
         {
             result = ERR_INCOMPLETE_RESPONSE;
             std::clog << "Warning, incomplete response. It doesn't end with the line feed" << std::endl;
         }
-        
+        else if (response[0] == '8')
+        {
+            result = ERR_FAIL_POWER_ONOFF;
+            std::clog << "ERROR, failed to power on/off" << std::endl;
+        }
+        else if (response[0] == '9')
+        {
+            result = ERR_UNKNOWN_CMD_WRONG_RACKNUM;
+            std::clog << "ERROR, unknown command or wrong rack-number" << std::endl;
+        }
         return result;
     }
 

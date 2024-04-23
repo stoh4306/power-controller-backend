@@ -169,7 +169,7 @@ int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int s
     {
         std::string tmpResponse;
         int result = ((PwCtrlBackend*)pwCtrlBe)->set_command(std::string(cmdStr), tmpResponse, 1000);
-        std::cout << "result=" << result << std::endl;
+        //std::cout << "result=" << result << std::endl;
         //std::cout << "response ptr=" << response << std::endl;
         //std::cout << "response array size=" << sizeof(response) << std::endl;
         //std::cout << "tmpResponse array size=" << sizeof(tmpResponse) << std::endl;
@@ -182,7 +182,7 @@ int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int s
         }
         else
         {
-            std::cerr << "Warning, size of received mesg exceeds the buffer size" << std::endl;
+            std::clog << "Warning, size of received mesg exceeds the buffer size" << std::endl;
             memcpy(response, tmpResponse.data(), n-1);
             response[n-1] = '\0';
         }
@@ -191,6 +191,7 @@ int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int s
     }
     else
     {
+        std::clog << "ERROR, null pointer of PWCTRL" << std::endl;
         return ERR_NULL_PWCTRL_PTR;
     }
 }
