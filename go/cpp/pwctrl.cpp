@@ -20,7 +20,7 @@
 void PwCtrlBackend::setPortNamePrefix(std::string prefix)
 {
     portNamePrefix_ = prefix;
-    std::cout << "prefix=" << portNamePrefix_ << std::endl;
+    //std::cout << "prefix=" << portNamePrefix_ << std::endl;
 }
 
 void PwCtrlBackend::setMinimumBytes(int minByte)

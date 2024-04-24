@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type CmdResult struct {
@@ -46,6 +47,7 @@ type McuResponseAllInOne struct {
 
 var pwCtrlBe unsafe.Pointer
 var healthStatus int
+var logger = logrus.New()
 
 // Create an instance of power-controller cpp backend
 func main() {
@@ -62,9 +64,12 @@ func main() {
 		return
 	}
 
-	fmt.Println(args[1])
-	fmt.Println(args[2])
-	fmt.Println(args[3])
+	logger.Formatter = &logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	}
+
+	logger.Info("Started with parameters : " + args[1] + ", " + args[2] + " " + args[3])
 
 	portNamePrefix := C.CString(args[1])
 	defer C.free(unsafe.Pointer(portNamePrefix))
@@ -89,7 +94,7 @@ func main() {
 	result := int(C.initialize_connection(unsafe.Pointer(pwCtrlBe)))
 	healthStatus = result
 	if result > 0 {
-		fmt.Println("ERROR, failed to initialize connection")
+		logger.Error("Failed to initialize serial port: code=" + strconv.Itoa(result))
 		return
 	}
 
