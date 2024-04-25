@@ -8,7 +8,6 @@ import "C"
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -163,13 +162,13 @@ func setPower(c *gin.Context) {
 	paramId := c.Param("id")
 	paramCmd := c.Param("cmd")
 	tmpCmd := paramCmd + paramId
-	log.Printf("cmd=%v", tmpCmd)
+	logger.Infof("Sent command : %v", tmpCmd)
 
 	cmdStr := C.CString(tmpCmd)
 	defer C.free(unsafe.Pointer(cmdStr))
 
 	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
-	//fmt.Printf("Mesg : %v", C.GoString(mesg))
+	logger.Infof("MCU response : %v", C.GoString(mesg))
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -195,12 +194,15 @@ func setPower(c *gin.Context) {
 		response.State = "success"
 		c.IndentedJSON(http.StatusOK, response)
 	} else {
-		response.State = "fail"
 		var failResponse McuResponseFail
 		failResponse.State = "fail"
 		failResponse.Message = "Error"
 		failResponse.ErrorType = "Unclassified"
-		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		if mcuCode == 9 {
+			c.IndentedJSON(http.StatusBadRequest, failResponse)
+		} else {
+			c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		}
 	}
 }
 
@@ -247,7 +249,11 @@ func getPower(c *gin.Context) {
 		failResponse.State = "fail"
 		failResponse.Message = "Error"
 		failResponse.ErrorType = "Unclassified"
-		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		if mcuCode == 9 {
+			c.IndentedJSON(http.StatusBadRequest, failResponse)
+		} else {
+			c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		}
 	}
 }
 
@@ -257,6 +263,11 @@ func initialize(c *gin.Context) {
 	defer C.free(unsafe.Pointer(cPortName))
 
 	result := int(C.initialize_connection(pwCtrlBe, C.int(63), cPortName))
+	if result == 0 {
+		logger.Infof("Successfully initialized serial port : %v", C.GoString(cPortName))
+	} else {
+		logger.Info("Failed to initialize serial port")
+	}
 
 	var tmpresponse CmdResult
 	tmpresponse.Cmd = "initialize"

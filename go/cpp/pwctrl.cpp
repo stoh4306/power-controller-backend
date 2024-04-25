@@ -235,9 +235,14 @@ int PwCtrlBackend::readSerialPort(std::string& mesg)
 
     // Here we assume we received ASCII data, but you might be sending raw bytes (in that case, don't try and
     // print it to the screen like this!)
-    printf("Read %i bytes. ", num_bytes );
-    if (num_bytes > 0) 
-        printf("Received message: %c\n", read_buf_[0]);
+    if (debugging_) 
+    {
+        printf("[SERIAL-COM] Read %i bytes. ", num_bytes );
+        if (num_bytes > 0) 
+            printf("Received message: %c\n", read_buf_[0]);
+        else
+            printf("\n");
+    }
     //for (int i = 0; i < num_bytes; ++i )
     //{
     //    std::cout << "[" << (unsigned int)read_buf_[i] << "] ";
@@ -262,7 +267,8 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
             initResult = initialize_connection();
             if ( initResult == SUCCESS )   
             {
-                std::cout << "Initialization done" << std::endl;
+                std::cout << "[SERIAL-COM] Successfully initialize serial port : " 
+                    << portName_ << std::endl;
                 break;
             }
             sleep(reconnectIntervalInSec_);
@@ -278,22 +284,22 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
         {
             // Sending command was ok, but failed to get response from MCU
             result = ERR_NO_RESPONSE;
-            std::clog << "ERROR, no response from MCU" << std::endl;
+            std::clog << "[SERIAL-COM] ERROR, no response from MCU" << std::endl;
         }
         else if (*(response.end()-1) != '\n')
         {
             result = ERR_INCOMPLETE_RESPONSE;
-            std::clog << "Warning, incomplete response. It doesn't end with the line feed" << std::endl;
+            std::clog << "[SERIAL-COM] Warning, incomplete response. It doesn't end with the line feed" << std::endl;
         }
         else if (response[0] == '8')
         {
             result = ERR_FAIL_POWER_ONOFF;
-            std::clog << "ERROR, failed to power on/off" << std::endl;
+            std::clog << "[SERIAL-COM] ERROR, failed to power on/off" << std::endl;
         }
         else if (response[0] == '9')
         {
             result = ERR_UNKNOWN_CMD_WRONG_RACKNUM;
-            std::clog << "ERROR, unknown command or wrong rack-number" << std::endl;
+            std::clog << "[SERIAL-COM] ERROR, unknown command or wrong rack-number" << std::endl;
         }
         return result;
     }
@@ -320,11 +326,11 @@ PwCtrlBackend::~PwCtrlBackend()
 {
     if (closePort() == 0)
     {
-        if (debugging_) std::clog << "PwCtrlBackend successfully destroyed" << std::endl;
+        if (debugging_) std::clog << "[SERIAL-COM] PwCtrlBackend successfully destroyed" << std::endl;
     }
     else
     {
-        if (debugging_) std::clog << "ERROR in destructor::closePort()" << std::endl;
+        if (debugging_) std::clog << "[SERIAL-COM] ERROR in destructor::closePort()" << std::endl;
     }
 }
 
