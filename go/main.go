@@ -81,19 +81,35 @@ func main() {
 	pwCtrlBe = C.createPwctrlBackend()
 	defer C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
 
+	// Set debugging mode
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "release" {
+		C.setDebuggingMode(pwCtrlBe, C.int(0))
+		logger.Info("Running in Release mode")
+	} else {
+		C.setDebuggingMode(pwCtrlBe, C.int(1))
+		logger.Info("Running in debugging mode")
+	}
+
 	// Set port name prefix
-	C.setPortNamePrefix(unsafe.Pointer(pwCtrlBe), portNamePrefix)
+	C.setPortNamePrefix(pwCtrlBe, portNamePrefix)
 
 	// Set max reading time
-	C.setMaxReadTime(unsafe.Pointer(pwCtrlBe), C.int(maxReadTime))
+	C.setMaxReadTime(pwCtrlBe, C.int(maxReadTime))
 
 	// Set minimum bytes to read
-	C.setMinimumBytes(unsafe.Pointer(pwCtrlBe), C.int(minByte))
+	C.setMinimumBytes(pwCtrlBe, C.int(minByte))
 
 	// Initialize connection
-	result := int(C.initialize_connection(unsafe.Pointer(pwCtrlBe)))
+	portName := make([]byte, 64)
+	cPortName := C.CString(string(portName))
+	defer C.free(unsafe.Pointer(cPortName))
+
+	result := int(C.initialize_connection(pwCtrlBe, C.int(63), cPortName))
 	healthStatus = result
-	if result > 0 {
+	if result == 0 {
+		logger.Info("Successfully initialized serial port: " + C.GoString(cPortName))
+	} else {
 		logger.Error("Failed to initialize serial port: code=" + strconv.Itoa(result))
 		return
 	}
@@ -105,6 +121,7 @@ func main() {
 	router.GET("/get/:id", getPower)
 
 	router.Run(":8080")
+	logger.Info("Listening :8080")
 
 	/*
 		keyReader := bufio.NewReader(os.Stdin)
@@ -197,10 +214,10 @@ func getPower(c *gin.Context) {
 	cmdStr := C.CString(tmpCmd)
 	defer C.free(unsafe.Pointer(cmdStr))
 
-	log.Printf("cmd=%v", tmpCmd)
+	logger.Infof("Sent command : %v", tmpCmd)
 
 	result := int(C.set_command(pwCtrlBe, cmdStr, mesg, 64, 100))
-	//fmt.Printf("Mesg : %v", C.GoString(mesg))
+	logger.Infof("MCU response : %v", C.GoString(mesg))
 
 	var tmpresponse CmdResult
 	tmpresponse.Cmd = tmpCmd
@@ -236,10 +253,10 @@ func getPower(c *gin.Context) {
 
 func initialize(c *gin.Context) {
 	chars := make([]byte, 64)
-	mesg := C.CString(string(chars))
-	defer C.free(unsafe.Pointer(mesg))
+	cPortName := C.CString(string(chars))
+	defer C.free(unsafe.Pointer(cPortName))
 
-	result := int(C.initialize_connection(pwCtrlBe))
+	result := int(C.initialize_connection(pwCtrlBe, C.int(63), cPortName))
 
 	var tmpresponse CmdResult
 	tmpresponse.Cmd = "initialize"

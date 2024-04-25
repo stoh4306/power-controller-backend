@@ -32,7 +32,8 @@ int main(int argc, char** argv)
 
     int sleepUTime = 1000000; // 1 sec
 
-    int result = initialize_connection(pwCtrlBe);
+    char portName[64];
+    int result = initialize_connection(pwCtrlBe, 63, portName);
     if (result > 0)
     {
         std::cerr << "ERROR, failed to initialize connection " << std::endl;
@@ -68,7 +69,7 @@ int main(int argc, char** argv)
             //std::string newPortName = cmdMesg.substr(1,cmdMesg.length());
             //std::cout << newPortName << std::endl;
             //initialize_connection(newPortName);
-            initialize_connection(pwCtrlBe);
+            initialize_connection(pwCtrlBe, 64, portName);
         }
         else if (cmdMesg.substr(0,1) == "q")
         {

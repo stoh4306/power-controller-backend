@@ -34,6 +34,7 @@ public:
     int readSerialPort(std::string& mesg);
     int set_command(std::string cmdStr, std::string& response, int sleepUTime);
     int closePort();
+    int setDebuggingMode(int mode);
 
 public:
     int serial_port_ = 0;
@@ -44,6 +45,7 @@ public:
     int minimumBytesToRead_ = 0;
     int reconnectIntervalInSec_ = 5;
     bool isReconnecting_ = false;
+    bool debugging_;
 };
 
 #endif

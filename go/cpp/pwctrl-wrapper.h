@@ -18,11 +18,13 @@ int find_serial_port(void* pwCtrlBe, char* portName, int n);
 int open_serial_port(void* pwCtrlBe, int* port, const char* portName);
 int configure_serial_port(void* pwCtrlBe, int* serial_port);
 int clearSerialIOBuffer(void* pwCtrlBe);
-int initialize_connection(void* pwCtrlBe);
+int initialize_connection(void* pwCtrlBe, int maxLengthPortName, char* portName);
 int writeSerialPort(void* pwCtrlBe, const char* mesg);
 int readSerialPort(void* pwCtrlBe, char* mesg, int n);
 int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int sleepUTime);
 int closePort(void* pwCtrlBe);
+int setDebuggingMode(void* pwCtrlBe, int mode);
+int getPortName(void* pwCtrlBe, int maxLength, char* portName);
 void* createPwctrlBackend();
 void  deletePwctrlBackend(void* pwCtrlBe);
 

@@ -5,6 +5,7 @@
 
 // C library headers
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Linux headers
@@ -58,7 +59,7 @@ int PwCtrlBackend::find_serial_port(std::string& portName)
     }
     else
     {
-        std::cerr << "ERROR in finding serial port : failed to opendir(/dev)" << std::endl;
+        if (debugging_) std::cerr << "ERROR in finding serial port : failed to opendir(/dev)" << std::endl;
         return ERR_FINDING_SERIAL_PORT;
     }
 }
@@ -66,7 +67,7 @@ int PwCtrlBackend::find_serial_port(std::string& portName)
 bool PwCtrlBackend::open_serial_port(int* port, const char* portName)
 {
     *port =  open(portName, O_RDWR);
-    std::cout << "port=" << *port << std::endl;
+    if (debugging_)     std::cout << "port=" << *port << std::endl;
 
     if (*port > 0)   return true; 
     else return false;
@@ -79,7 +80,7 @@ int PwCtrlBackend::configure_serial_port(int* serial_port)
 
     // Read in existing settings, and handle any error
     if(tcgetattr(*serial_port, &tty) != 0) {
-        printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+        if (debugging_)     printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
         return 1;
     }
 
@@ -105,7 +106,7 @@ int PwCtrlBackend::configure_serial_port(int* serial_port)
 
     tty.c_cc[VTIME] = maxReadTime_;    // Wait for up to VTIME deciseconds, returning as soon as any data is received.
     tty.c_cc[VMIN] = minimumBytesToRead_;      // Minimum bytes => 3
-    std::cout << "MaxReadTime=" << maxReadTime_/10 << " sec" << "\n"
+    if (debugging_) std::clog << "MaxReadTime=" << maxReadTime_/10 << " sec" << "\n"
         << "Minimum Bytes=" << minimumBytesToRead_ << std::endl;
 
     // Set in/out baud rate to be 9600
@@ -114,7 +115,7 @@ int PwCtrlBackend::configure_serial_port(int* serial_port)
 
     // Save tty settings, also checking for error
     if (tcsetattr(*serial_port, TCSANOW, &tty) != 0) {
-        printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+        if (debugging_) printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
         return 2;
     }
 
@@ -127,7 +128,7 @@ int PwCtrlBackend::clearSerialIOBuffer()
     int result = tcflush(serial_port_, TCIOFLUSH);
     if ( result < 0 )
     {
-        std::cout << "Warning, failed to clear serial I/O buffer" << std::endl;
+        if (debugging_) std::clog << "Warning, failed to clear serial I/O buffer" << std::endl;
         return 1;
     }
 
@@ -140,7 +141,9 @@ int PwCtrlBackend::initialize_connection()
     int result = find_serial_port(newPortName);
     if ( result > 0 ) return result;
 
-    std::cout << "Port found : " << newPortName << std::endl;
+    if (debugging_)
+        std::clog << "Port found : " << newPortName << std::endl;
+    
     if ( portName_.length() == 0 )
     {
         portName_ = newPortName;
@@ -151,12 +154,12 @@ int PwCtrlBackend::initialize_connection()
     {
         old_serial_port = serial_port_;
         result = close(serial_port_);
-        std::cout << "close port result = " << result << std::endl;
+        if (debugging_) std::clog << "close port result = " << result << std::endl;
     }
 
     if (open_serial_port(&serial_port_, newPortName.c_str()) == false)
     {
-        std::cerr << "Error, can't open serial port : " << newPortName << std::endl;
+        if (debugging_) std::clog << "Error, can't open serial port : " << newPortName << std::endl;
         serial_port_ = old_serial_port;
         return ERR_OPEN_PORT;
     }
@@ -168,21 +171,21 @@ int PwCtrlBackend::initialize_connection()
         result = configure_serial_port(&serial_port_);
         if ( result > 0 )
         {
-            std::cerr << "Error, failed to configure the serial port" << std::endl;
+            if (debugging_) std::clog << "Error, failed to configure the serial port" << std::endl;
             return ERR_CONFIGURE_PORT;
         }
 
-        std::cout << "configure port done" << std::endl;
+        if (debugging_) std::clog << "configure port done" << std::endl;
 
         // Clear serial buffer
         result = clearSerialIOBuffer();
         if (result > 0)
         {
-            std::cerr << "Error, failed to clear serial buffer : " 
+            if (debugging_) std::clog << "Error, failed to clear serial buffer : " 
                 << serial_port_ << " " << portName_ << std::endl; 
             return ERR_CLEAR_SERIAL_BUFFER;
         }
-        std::cout << "clear serial buffer done" << std::endl;
+        if (debugging_) std::clog << "clear serial buffer done" << std::endl;
 
         return SUCCESS;
     } 
@@ -194,7 +197,7 @@ int PwCtrlBackend::writeSerialPort(std::string mesg)
     {
         // NOTE : This is for cgo. Not needed in c/c++
         mesg[mesg.length()-1] = '\r';
-        std::clog << "line feed deleted in command string" << std::endl;
+        if (debugging_) std::clog << "line feed deleted in command string" << std::endl;
     }
     else
     {
@@ -209,7 +212,7 @@ int PwCtrlBackend::writeSerialPort(std::string mesg)
     int result = write(serial_port_, mesg.c_str(), mesg.length());
     if (result < 0)
     {
-        std::cout << "Error in writing : " << result << std::endl;
+        if (debugging_) std::clog << "Error in writing : " << result << std::endl;
         return ERR_WRITE_SERIAL_PORT;
     }
     return SUCCESS;
@@ -307,15 +310,21 @@ int PwCtrlBackend::closePort()
     return 0;
 }
 
+int PwCtrlBackend::setDebuggingMode(int mode)
+{
+    if (mode == 0) debugging_ = false; else debugging_ = true;
+    return 0;
+}
+
 PwCtrlBackend::~PwCtrlBackend()
 {
     if (closePort() == 0)
     {
-        std::clog << "PwCtrlBackend successfully destroyed" << std::endl;
+        if (debugging_) std::clog << "PwCtrlBackend successfully destroyed" << std::endl;
     }
     else
     {
-        std::clog << "ERROR in destructor::closePort()" << std::endl;
+        if (debugging_) std::clog << "ERROR in destructor::closePort()" << std::endl;
     }
 }
 
@@ -329,4 +338,5 @@ PwCtrlBackend::PwCtrlBackend()
     minimumBytesToRead_ = 0;
     reconnectIntervalInSec_ = 5;
     isReconnecting_ = false;
+    debugging_ = false;
 }

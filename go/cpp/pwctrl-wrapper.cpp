@@ -111,11 +111,32 @@ int clearSerialIOBuffer(void* pwCtrlBe)
     }
 }
 
-int initialize_connection(void* pwCtrlBe)
+int getPortName(void* pwCtrlBe, int maxLength, char* portName)
+{
+    memset(portName, '\0', maxLength+1);
+
+    std::string currPortName = ((PwCtrlBackend*)pwCtrlBe)->portName_;
+
+    if (currPortName.length() > maxLength)
+    {
+        memcpy(portName, currPortName.data(), maxLength);
+    }
+    else
+    {
+        memcpy(portName, currPortName.data(), currPortName.length());
+    }
+
+    return 0;
+}
+
+int initialize_connection(void* pwCtrlBe, int maxLengthPortName, char* portName)
 {
     if (pwCtrlBe)
     {
-        return ((PwCtrlBackend*)pwCtrlBe)->initialize_connection();
+        std::string foundPortName;
+        int result = ((PwCtrlBackend*)pwCtrlBe)->initialize_connection();
+        getPortName(pwCtrlBe, maxLengthPortName, portName);
+        return result;
     }
     else
     {
@@ -182,7 +203,8 @@ int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int s
         }
         else
         {
-            std::clog << "Warning, size of received mesg exceeds the buffer size" << std::endl;
+            if (((PwCtrlBackend*)pwCtrlBe)->debugging_)
+                std::clog << "Warning, size of received mesg exceeds the buffer size" << std::endl;
             memcpy(response, tmpResponse.data(), n-1);
             response[n-1] = '\0';
         }
@@ -191,7 +213,8 @@ int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int s
     }
     else
     {
-        std::clog << "ERROR, null pointer of PWCTRL" << std::endl;
+        if (((PwCtrlBackend*)pwCtrlBe)->debugging_)
+            std::clog << "ERROR, null pointer of PWCTRL" << std::endl;
         return ERR_NULL_PWCTRL_PTR;
     }
 }
@@ -206,6 +229,19 @@ int closePort(void* pwCtrlBe)
         return ERR_NULL_PWCTRL_PTR;
     }
 }
+
+int setDebuggingMode(void* pwCtrlBe, int mode)
+{
+    if (pwCtrlBe)
+    {
+        return ((PwCtrlBackend*)pwCtrlBe)->setDebuggingMode(mode);
+    }
+    else
+    {
+        return ERR_NULL_PWCTRL_PTR;
+    }
+}
+
 void* createPwctrlBackend()
 {
     PwCtrlBackend * pwCtrlBe = new PwCtrlBackend();
