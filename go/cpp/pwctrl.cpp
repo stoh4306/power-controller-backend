@@ -187,6 +187,7 @@ int PwCtrlBackend::initialize_connection()
         }
         if (debugging_) std::clog << "clear serial buffer done" << std::endl;
 
+        initialized_ = true;
         return SUCCESS;
     } 
 }
@@ -261,9 +262,13 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
 
     if (result != 0)
     {
+        initialized_ = false;
+
         int initResult = 0;
         while(1)
         {
+            if (initialized_) break;
+
             initResult = initialize_connection();
             if ( initResult == SUCCESS )   
             {
