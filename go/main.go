@@ -44,6 +44,10 @@ type McuResponseAllInOne struct {
 	Debug            string `json:"debug"`
 }
 
+type HealthResponse struct {
+	Status string `json:"status"`
+}
+
 var pwCtrlBe unsafe.Pointer
 var healthStatus int
 var logger = logrus.New()
@@ -119,6 +123,9 @@ func main() {
 	router.GET("/initialize", initialize)
 	router.GET("/get/:id", getPower)
 
+	//NOTE: Healthy status does not always mean real "healthy" in the current implementation.
+	router.GET("/health", healthCheck)
+
 	router.Run(":8080")
 	logger.Info("Listening :8080")
 
@@ -152,6 +159,18 @@ func main() {
 
 	//// Destroy the instance of power-controller cpp backend
 	//C.deletePwctrlBackend(unsafe.Pointer(pwCtrlBe))
+}
+
+func healthCheck(c *gin.Context) {
+	var healthResponse HealthResponse
+
+	result := int(C.getInitStatus(pwCtrlBe))
+	if result == 0 {
+		healthResponse.Status = "healthy"
+	} else {
+		healthResponse.Status = "unhealthy"
+	}
+	c.IndentedJSON(http.StatusOK, healthResponse)
 }
 
 func setPower(c *gin.Context) {

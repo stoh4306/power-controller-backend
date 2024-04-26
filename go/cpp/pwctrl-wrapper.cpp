@@ -144,6 +144,21 @@ int initialize_connection(void* pwCtrlBe, int maxLengthPortName, char* portName)
     }
 }
 
+int getInitStatus(void* pwCtrlBe)
+{
+    if (pwCtrlBe)
+    {
+        if (((PwCtrlBackend*)pwCtrlBe)->initialized_ == true)
+            return 0;
+        else
+            return ERR_UNINITIALIZED;
+    }
+    else
+    {
+        return ERR_NULL_PWCTRL_PTR;
+    }
+}
+
 int writeSerialPort(void* pwCtrlBe, const char* mesg)
 {
     if (pwCtrlBe)

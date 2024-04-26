@@ -19,6 +19,7 @@ int open_serial_port(void* pwCtrlBe, int* port, const char* portName);
 int configure_serial_port(void* pwCtrlBe, int* serial_port);
 int clearSerialIOBuffer(void* pwCtrlBe);
 int initialize_connection(void* pwCtrlBe, int maxLengthPortName, char* portName);
+int getInitStatus(void* pwCtrlBe);
 int writeSerialPort(void* pwCtrlBe, const char* mesg);
 int readSerialPort(void* pwCtrlBe, char* mesg, int n);
 int set_command(void* pwCtrlBe, const char* cmdStr, char* response, int n, int sleepUTime);
