@@ -45,6 +45,7 @@ public:
     int minimumBytesToRead_ = 0;
     int reconnectIntervalInSec_ = 5;
     bool isReconnecting_ = false;
+    bool initialized_ = false;
     bool debugging_;
 };
 

@@ -169,7 +169,7 @@ int PwCtrlBackend::initialize_connection()
 
         // Configure serial port
         result = configure_serial_port(&serial_port_);
-        if ( result > 0 )
+        if ( result != 0 )
         {
             if (debugging_) std::clog << "Error, failed to configure the serial port" << std::endl;
             return ERR_CONFIGURE_PORT;
@@ -179,7 +179,7 @@ int PwCtrlBackend::initialize_connection()
 
         // Clear serial buffer
         result = clearSerialIOBuffer();
-        if (result > 0)
+        if (result != 0)
         {
             if (debugging_) std::clog << "Error, failed to clear serial buffer : " 
                 << serial_port_ << " " << portName_ << std::endl; 
@@ -229,7 +229,7 @@ int PwCtrlBackend::readSerialPort(std::string& mesg)
 
     // n is the number of bytes read. n may be 0 if no bytes were received, and can also be -1 to signal an error.
     if (num_bytes < 0) {
-        printf("Error reading: %s", strerror(errno));
+        printf("[SERIAL-COM] Error reading: %s", strerror(errno));
         return ERR_READ_SERIAL_PORT;
     }
 
@@ -259,7 +259,7 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
     int result = 0;
     result = writeSerialPort(cmdStr);
 
-    if (result > 0)
+    if (result != 0)
     {
         int initResult = 0;
         while(1)
@@ -278,7 +278,7 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
     else
     {
         result = readSerialPort(response);
-        if (result > 0) return result;
+        if (result != SUCCESS) return result;
 
         if (response.length() == 0)
         {
@@ -344,5 +344,6 @@ PwCtrlBackend::PwCtrlBackend()
     minimumBytesToRead_ = 0;
     reconnectIntervalInSec_ = 5;
     isReconnecting_ = false;
+    initialized_ = false;
     debugging_ = false;
 }
