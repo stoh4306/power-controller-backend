@@ -257,6 +257,19 @@ int setDebuggingMode(void* pwCtrlBe, int mode)
     }
 }
 
+int startInitThread(void* pwCtrlBe)
+{
+    if (pwCtrlBe)
+    {
+        ((PwCtrlBackend*)pwCtrlBe)->startInitThread();
+        return 0;
+    } 
+    else
+    {
+        return 1;
+    } 
+}
+
 void* createPwctrlBackend()
 {
     PwCtrlBackend * pwCtrlBe = new PwCtrlBackend();
@@ -268,3 +281,4 @@ void deletePwctrlBackend(void* pwCtrlBe)
     delete (PwCtrlBackend*)pwCtrlBe;
     pwCtrlBe = NULL;
 }
+

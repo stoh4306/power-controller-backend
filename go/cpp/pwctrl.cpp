@@ -15,7 +15,7 @@
 #include <unistd.h> // write(), read(), close()
 
 #include <dirent.h> // To find serial port
-//#include <thread>
+#include <thread>
 #include <chrono>
 
 void PwCtrlBackend::setPortNamePrefix(std::string prefix)
@@ -135,6 +135,30 @@ int PwCtrlBackend::clearSerialIOBuffer()
     return 0;
 }
 
+int PwCtrlBackend::batch_init_connection()
+{
+    int initResult = 0;
+    while(1)
+    {
+        if (should_run_ == false) break;
+
+        if (reInitRequired_ == true)
+        {
+            initResult = initialize_connection();
+            if ( initResult == SUCCESS )   
+            {
+                std::cout << "[SERIAL-COM] Successfully initialize serial port : " 
+                    << portName_ << std::endl;
+
+                reInitRequired_ = false;
+            }
+        }
+        sleep(reconnectIntervalInSec_);
+    }
+
+    return SUCCESS;
+}
+
 int PwCtrlBackend::initialize_connection()
 {
     std::string newPortName;
@@ -188,6 +212,8 @@ int PwCtrlBackend::initialize_connection()
         if (debugging_) std::clog << "clear serial buffer done" << std::endl;
 
         initialized_ = true;
+        reInitRequired_ = false;
+        
         return SUCCESS;
     } 
 }
@@ -264,7 +290,8 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
     {
         initialized_ = false;
 
-        int initResult = 0;
+        reInitRequired_ = true;
+        /*int initResult = 0;
         while(1)
         {
             if (initialized_) break;
@@ -277,7 +304,7 @@ int PwCtrlBackend::set_command(std::string cmdStr, std::string& response, int sl
                 break;
             }
             sleep(reconnectIntervalInSec_);
-        }
+        }//*/
         return result;
     } 
     else
@@ -327,8 +354,25 @@ int PwCtrlBackend::setDebuggingMode(int mode)
     return 0;
 }
 
+int PwCtrlBackend::startInitThread()
+{
+    initConnThread_ = std::thread(&PwCtrlBackend::batch_init_connection, this);
+    return 0;
+}
+
+int PwCtrlBackend::stopInitThread()
+{
+    if (initConnThread_.joinable()) {
+        should_run_ = false; // Signal the thread to stop
+        initConnThread_.join();  // Wait for the thread to finish
+    }
+    return 0;
+}
+
 PwCtrlBackend::~PwCtrlBackend()
 {
+    stopInitThread();
+
     if (closePort() == 0)
     {
         if (debugging_) std::clog << "[SERIAL-COM] PwCtrlBackend successfully destroyed" << std::endl;
@@ -350,5 +394,8 @@ PwCtrlBackend::PwCtrlBackend()
     reconnectIntervalInSec_ = 5;
     isReconnecting_ = false;
     initialized_ = false;
+    reInitRequired_ = true;
     debugging_ = false;
+
+    should_run_ = true;
 }

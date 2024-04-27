@@ -108,14 +108,16 @@ func main() {
 	cPortName := C.CString(string(portName))
 	defer C.free(unsafe.Pointer(cPortName))
 
-	result := int(C.initialize_connection(pwCtrlBe, C.int(63), cPortName))
-	healthStatus = result
-	if result == 0 {
-		logger.Info("Successfully initialized serial port: " + C.GoString(cPortName))
-	} else {
-		logger.Error("Failed to initialize serial port: code=" + strconv.Itoa(result))
-		return
-	}
+	//result := int(C.initialize_connection(pwCtrlBe, C.int(63), cPortName))
+	//healthStatus = result
+	//if result == 0 {
+	//	logger.Info("Successfully initialized serial port: " + C.GoString(cPortName))
+	//} else {
+	//	logger.Error("Failed to initialize serial port: code=" + strconv.Itoa(result))
+	//	return
+	//}
+
+	C.startInitThread(pwCtrlBe)
 
 	router := gin.Default()
 
@@ -174,6 +176,16 @@ func healthCheck(c *gin.Context) {
 }
 
 func setPower(c *gin.Context) {
+
+	if int(C.getInitStatus(pwCtrlBe)) != 0 {
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "Error"
+		failResponse.ErrorType = "Unclassified"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		return
+	}
+
 	chars := make([]byte, 64)
 	mesg := C.CString(string(chars))
 	defer C.free(unsafe.Pointer(mesg))
@@ -226,6 +238,15 @@ func setPower(c *gin.Context) {
 }
 
 func getPower(c *gin.Context) {
+	if int(C.getInitStatus(pwCtrlBe)) != 0 {
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "Error"
+		failResponse.ErrorType = "Unclassified"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		return
+	}
+
 	chars := make([]byte, 64)
 	mesg := C.CString(string(chars))
 	defer C.free(unsafe.Pointer(mesg))

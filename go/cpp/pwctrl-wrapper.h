@@ -29,6 +29,8 @@ int getPortName(void* pwCtrlBe, int maxLength, char* portName);
 void* createPwctrlBackend();
 void  deletePwctrlBackend(void* pwCtrlBe);
 
+int startInitThread(void* pwCtrlBe);
+
 #ifdef __cplusplus
 }
 #endif
