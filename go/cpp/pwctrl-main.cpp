@@ -33,12 +33,15 @@ int main(int argc, char** argv)
     int sleepUTime = 1000000; // 1 sec
 
     char portName[64];
-    int result = initialize_connection(pwCtrlBe, 63, portName);
+    /*int result = initialize_connection(pwCtrlBe, 63, portName);
     if (result > 0)
     {
         std::cerr << "ERROR, failed to initialize connection " << std::endl;
         return result;
-    }
+    }//*/
+    int result = 0;
+    startInitThread(pwCtrlBe);
+
 
     //std::string mesg;
     char mesg[256];
@@ -53,12 +56,12 @@ int main(int argc, char** argv)
         if (cmdMesg.substr(0,1) == "r")
         {
             readSerialPort(pwCtrlBe, mesg, sizeof(mesg));
-            //printf("mesg=%s\n", mesg);
+            printf("mesg=%s\n", mesg);
         }
         else if (cmdMesg.substr(0,1) == "w")
         {
             result = set_command(pwCtrlBe, cmdMesg.substr(1,cmdMesg.length()).c_str(), mesg, sizeof(mesg), sleepUTime);
-            //printf("mesg=%s\n", mesg);
+            printf("mesg=%s\n", mesg);
         }
         else if (cmdMesg.substr(0,1) == "c")
         {
