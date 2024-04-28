@@ -1,31 +1,42 @@
 # Build stage
-FROM golang:1.19-buster AS builder
-RUN apt-get update && apt-get install -y \
-    g++ \
-    cmake \
-    && rm -rf /var/lib/apt/list/*
+# Use Rocky Linux as the base image
+FROM rockylinux:8.9
+
+# Install necessary packages
+RUN dnf -y update && \
+    #dnf -y groupinstall "Development Tools" && \
+    dnf -y install wget tar cmake gcc gcc-c++
+
+# Set environment variables for Go installation
+ENV GOLANG_VERSION 1.18
+ENV GOPATH /go
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+
+# Create the directory and install Go
+RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH" && \
+    wget -q "https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz" -O go.tar.gz && \
+    tar -C /usr/local -xzf go.tar.gz && \
+    rm go.tar.gz
+
+# Set the working directory inside the container
+#WORKDIR $GOPATH
+
 WORKDIR /app
+RUN pwd
 COPY . .
 RUN ls -al
 COPY ./cpp /app/cpp
 
 
-RUN mkdir /app/cpp/build
-RUN cd /app/cpp/build && cmake .. -DCMAKE_BUILD_TYPE=Release && make && cp libpwctrlbe.so /lib/x86_64-linux-gnu/
+RUN mkdir ./cpp/build
+RUN cd ./cpp/build && cmake .. -DCMAKE_BUILD_TYPE=Release && make
+RUN cp ./cpp/build/libpwctrlbe.so /lib64/
 
 RUN go mod init grida/m2m/pwctrl-be-cpp-go
 RUN go get github.com/gin-gonic/gin
+RUN go get github.com/sirupsen/logrus
 
 RUN CGO_ENABLED=1 go build -o pwctrl-be-app .
 
-#ENTRYPOINT [ "/app/pwctrl-be-app", "ttyUSB", "100", "0" ]
-
-
-# Final stage
-#FROM scratch
-#WORKDIR /
-#COPY --from=builder /app/pwctrl-be-app /app
-#COPY --from=builder /lib/x86_64-linux-gnu/libpwctrlbe.so /lib/x86_64-linux-gnu/
-#RUN ls -al
-#EXPOSE 8080
-#ENTRYPOINT ["/app", "ttyUSB", "100", "0"]
+EXPOSE 8080
+ENTRYPOINT [ "/app/pwctrl-be-app", "ttyUSB", "100", "0" ]
