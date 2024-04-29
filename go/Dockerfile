@@ -1,6 +1,6 @@
 # Build stage
 # Use Rocky Linux as the base image
-FROM rockylinux:8.9
+FROM rockylinux:8.9 as builder
 
 # Install necessary packages
 RUN dnf -y update && \
@@ -38,5 +38,15 @@ RUN go get github.com/sirupsen/logrus
 
 RUN CGO_ENABLED=1 go build -o pwctrl-be-app .
 
+#EXPOSE 8080
+#ENTRYPOINT [ "/app/pwctrl-be-app", "ttyUSB", "100", "0" ]
+
+#
+FROM alpine
+
+RUN apk update --no-cache && apk upgrade --no-cache && apk add --no-cache bash libstdc++ libc6-compat
+COPY --from=builder /app/pwctrl-be-app ./pwctrl-be-app
+COPY --from=builder /lib64/libpwctrlbe.so /lib/libpwctrlbe.so
+
 EXPOSE 8080
-ENTRYPOINT [ "/app/pwctrl-be-app", "ttyUSB", "100", "0" ]
+ENTRYPOINT [ "./pwctrl-be-app", "ttyUSB", "100", "0" ]
