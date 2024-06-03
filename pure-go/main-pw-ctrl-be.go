@@ -1,15 +1,21 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
+
+	"go.bug.st/serial"
 )
 
 type PwCtrlBe struct {
 	portPrefix  string
 	readTimeOut int
 	readMinByte int
+
+	portName           string
+	connectInitialized bool
 }
 
 // PwCtrlBe constructor
@@ -42,6 +48,44 @@ func main() {
 	}
 
 	return
+}
+
+func (p *PwCtrlBe) intializeConnection() error {
+
+}
+
+func (p *PwCtrlBe) findSerialPort() error {
+	ports, err := serial.GetPortsList()
+	if err != nil {
+		return err
+	}
+
+	portList := make([]string, 0)
+
+	for _, port := range ports {
+		if port[:len(p.portPrefix)] == p.portPrefix {
+			portList = append(portList, port)
+		}
+	}
+
+	if len(portList) != 1 {
+		return errors.New("No or multiple ports found")
+	}
+
+	p.portName = portList[0]
+	fmt.Printf("- Serial port found : %v\n", p.portName)
+
+	mode := &serial.Mode{
+		BaudRate: 9600,
+		Parity:   serial.EvenParity,
+		DataBits: 8,
+		StopBits: serial.OneStopBit,
+	}
+
+	port := serial.Open(p.portName, mode)
+	port
+
+	return nil
 }
 
 func readInputs(args []string) error {
