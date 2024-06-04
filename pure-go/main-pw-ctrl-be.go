@@ -47,11 +47,17 @@ func main() {
 		return
 	}
 
+	err = pwCtrlBe.findSerialPort()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	return
 }
 
 func (p *PwCtrlBe) intializeConnection() error {
-
+	return nil
 }
 
 func (p *PwCtrlBe) findSerialPort() error {
@@ -75,15 +81,14 @@ func (p *PwCtrlBe) findSerialPort() error {
 	p.portName = portList[0]
 	fmt.Printf("- Serial port found : %v\n", p.portName)
 
-	mode := &serial.Mode{
+	/*mode := &serial.Mode{
 		BaudRate: 9600,
 		Parity:   serial.EvenParity,
 		DataBits: 8,
 		StopBits: serial.OneStopBit,
-	}
+	}*/
 
-	port := serial.Open(p.portName, mode)
-	port
+	//serialPort, err := serial.Open(p.portName, mode)
 
 	return nil
 }
