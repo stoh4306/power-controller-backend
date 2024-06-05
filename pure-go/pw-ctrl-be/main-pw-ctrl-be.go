@@ -54,6 +54,7 @@ type PwCtrl struct {
 	connectInitialized bool
 	serialPortFound    bool
 	serialPort         serial.Port
+	reIntializing      bool
 }
 
 var debugginMode_ bool
@@ -97,6 +98,7 @@ func main() {
 		portName:           "",
 		connectInitialized: false,
 		serialPortFound:    false,
+		reIntializing:      false,
 	}
 
 	//pwCtrl.printValues()
@@ -286,9 +288,10 @@ func initialize(c *gin.Context) {
 func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) error {
 	err := pwctl.write([]byte(cmdStr))
 	if err != nil {
-
 		//TODO : re-initialzation code here
-
+		if pwctl.reIntializing == false {
+			go pwctl.reIntializeConnection()
+		}
 		return err
 	} else {
 		_, err = pwctl.read([]byte(response))
@@ -307,6 +310,23 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		}
 
 		return err
+	}
+}
+
+func (pwctl *PwCtrl) reIntializeConnection() {
+	// To prevent multiple executions of re-initializing
+	if pwctl.reIntializing == false {
+		pwctl.reIntializing = true
+
+		for true {
+			_, err := pwctl.intializeConnection()
+			if err == nil {
+				pwctl.reIntializing = false
+				break
+			}
+
+			time.Sleep(5 * time.Second)
+		}
 	}
 }
 
