@@ -285,18 +285,18 @@ func getPower(c *gin.Context) {
 }
 
 func initialize(c *gin.Context) {
-	portName, err := pwCtrl.intializeConnection()
+	code, err := pwCtrl.intializeConnection()
 	if err != nil {
 		logger.Info("Failed to initialize serial port")
 	} else {
-		logger.Infof("Successfully initialized serial port : %v", portName)
+		logger.Infof("Successfully initialized serial port : %v", pwCtrl.portName)
 	}
 
 	if err != nil {
 		var failResponse McuResponseFail
 		failResponse.State = "fail"
-		failResponse.Message = "Error"
-		failResponse.ErrorType = "Unclassified"
+		failResponse.Message = err.Error()
+		failResponse.ErrorType = strconv.Itoa(code)
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	} else {
 		var response McuResponse
@@ -312,17 +312,20 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 	if err != nil {
 		//TODO : re-initialzation code here
 		if !pwctl.reIntializing {
+			logger.Info("Re-initializing serial port")
 			go pwctl.reIntializeConnection()
 		}
+		logger.Info(err.Error())
 		return ERROR_WRITING, err
 	} else {
 		tmpRes := make([]byte, 64)
 		n, err := pwctl.read(tmpRes)
 		response = string(tmpRes)
-		fmt.Println("n=", n)
-		fmt.Println("response = ", response[:n])
+		//fmt.Println("n=", n)
+		//fmt.Println("response = ", response[:n])
 
 		if err != nil {
+			logger.Info(err.Error())
 			return ERROR_READING, err
 		}
 
@@ -397,6 +400,7 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 
 	err := pwctl.findSerialPort()
 	if err != nil {
+		logger.Info(err.Error())
 		return ERROR_NO_PORT_FOUND, err
 	}
 
@@ -409,6 +413,7 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 
 	pwctl.serialPort, err = serial.Open(pwctl.portName, mode)
 	if err != nil {
+		logger.Info(err.Error())
 		return ERROR_OPEN_PORT, err
 	}
 
@@ -416,15 +421,17 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 
 	err = pwctl.serialPort.ResetInputBuffer()
 	if err != nil {
+		logger.Info(err.Error())
 		return ERROR_RESET_INBUFFER, err
 	}
 
 	err = pwctl.serialPort.ResetOutputBuffer()
 	if err != nil {
+		logger.Info(err.Error())
 		return ERROR_RESET_OUTBUFFER, err
 	}
 
-	fmt.Println("- Serial port initialized : ", pwctl.portName)
+	logger.Info("Serial port re-initialized : ", pwctl.portName)
 
 	return SUCCESS, nil
 }
