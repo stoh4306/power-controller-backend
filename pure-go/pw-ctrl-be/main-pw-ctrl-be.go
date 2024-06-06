@@ -59,6 +59,18 @@ type PwCtrl struct {
 
 var debugginMode_ bool
 
+// Error code
+const SUCCESS = 0
+const ERROR_POWER_ONOFF = 1
+const ERROR_UNKNOWN_CMD = 2
+const ERROR_WRITING = 100
+const ERROR_NO_PORT_FOUND = 101
+const ERROR_OPEN_PORT = 102
+const ERROR_RESET_OUTBUFFER = 103
+const ERROR_RESET_INBUFFER = 104
+const ERROR_READING = 200
+const ERROR_NO_DATA_READ = 201
+
 // PwCtrl constructor
 //func NewPwCtrl(prefix string, timeout int, minbyte int) *PwCtrl {
 //	return &PwCtrl{prefix, timeout, minbyte}
@@ -173,14 +185,15 @@ func setPower(c *gin.Context) {
 	tmpCmd := paramCmd + paramId
 	logger.Infof("Sent command : %v", tmpCmd)
 
-	err := pwCtrl.setCommand(tmpCmd, mesg, 100)
+	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
+
 	logger.Infof("MCU response : %v", mesg)
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
 	tmpResponse.Res = mesg
 
-	mcuCode := 0
+	mcuCode := -1
 	if len(tmpResponse.Res) > 0 {
 		mcuCode, _ = strconv.Atoi(tmpResponse.Res[:1])
 	}
@@ -202,8 +215,8 @@ func setPower(c *gin.Context) {
 	} else {
 		var failResponse McuResponseFail
 		failResponse.State = "fail"
-		failResponse.Message = "Error"
-		failResponse.ErrorType = "Unclassified"
+		failResponse.Message = err.Error()
+		failResponse.ErrorType = strconv.Itoa(code)
 		if mcuCode == 9 {
 			c.IndentedJSON(http.StatusBadRequest, failResponse)
 		} else {
@@ -220,18 +233,8 @@ func getPower(c *gin.Context) {
 	tmpCmd := "C" + paramId
 	logger.Infof("Sent command : %v", tmpCmd)
 
-	err := pwCtrl.setCommand(tmpCmd, mesg, 100)
+	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
 	logger.Infof("MCU response : %v", mesg)
-	if err != nil {
-		logger.Infof(err.Error())
-
-		var failResponse McuResponseFail
-		failResponse.State = "fail"
-		failResponse.Message = err.Error()
-		failResponse.ErrorType = "MCU Error or check cable"
-		c.IndentedJSON(http.StatusInternalServerError, failResponse)
-		return
-	}
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -243,8 +246,8 @@ func getPower(c *gin.Context) {
 	} else {
 		var failResponse McuResponseFail
 		failResponse.State = "fail"
-		failResponse.Message = "No response from MCU"
-		failResponse.ErrorType = "MCU Error or check cable"
+		failResponse.Message = err.Error()
+		failResponse.ErrorType = strconv.Itoa(code)
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 		return
 	}
@@ -266,8 +269,8 @@ func getPower(c *gin.Context) {
 	} else {
 		var failResponse McuResponseFail
 		failResponse.State = "fail"
-		failResponse.Message = "Error"
-		failResponse.ErrorType = "Unclassified"
+		failResponse.Message = err.Error()
+		failResponse.ErrorType = strconv.Itoa(code)
 		if mcuCode == 9 {
 			c.IndentedJSON(http.StatusBadRequest, failResponse)
 		} else {
@@ -277,14 +280,11 @@ func getPower(c *gin.Context) {
 }
 
 func initialize(c *gin.Context) {
-	chars := make([]byte, 64)
-	portName := string(chars)
-
 	portName, err := pwCtrl.intializeConnection()
 	if err != nil {
 		logger.Info("Failed to initialize serial port")
 	} else {
-		logger.Info("Successfully initialized serial port : %v", portName)
+		logger.Infof("Successfully initialized serial port : %v", portName)
 	}
 
 	if err != nil {
@@ -302,37 +302,42 @@ func initialize(c *gin.Context) {
 	}
 }
 
-func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) error {
+func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) (int, error) {
 	err := pwctl.write([]byte(cmdStr))
 	if err != nil {
 		//TODO : re-initialzation code here
 		if !pwctl.reIntializing {
 			go pwctl.reIntializeConnection()
 		}
-		return err
+		return ERROR_WRITING, err
 	} else {
 		n, err := pwctl.read([]byte(response))
+
+		if err != nil {
+			return ERROR_READING, err
+		}
+
 		if n == 0 {
-			errMesg := "[SERIAL-COM] ERROR" + err.Error()
+			errMesg := "ERROR : " + err.Error()
 			logger.Info(errMesg)
-			return errors.New(errMesg)
+			return ERROR_NO_DATA_READ, errors.New(err.Error())
 		}
 
-		if err == nil {
-			return nil
-		}
-
-		if len(response) == 0 {
-			logger.Info("[SERIAL-COM] ERROR, no response from MCU")
-		} else if response[len(response)-1] != '\n' {
-			logger.Info("[SERIAL-COM] Warning, incomplete response")
+		var errMesg string
+		if response[len(response)-1] != '\n' {
+			logger.Info("WARNING : no newline character in response")
+			return SUCCESS, nil
 		} else if response[0] == '8' {
-			logger.Info("[SERIAL-COM] ERROR, failed to power on/off")
+			errMesg = "ERROR : failed to power on/off"
+			logger.Info(errMesg)
+			return ERROR_POWER_ONOFF, errors.New(errMesg)
 		} else if response[0] == '9' {
-			logger.Info("[SERIAL-COM] ERROR, unknown command or wrong rack-number")
+			errMesg = "ERROR : unknown command or wrong rack-number"
+			logger.Info(errMesg)
+			return ERROR_UNKNOWN_CMD, errors.New(errMesg)
 		}
 
-		return err
+		return SUCCESS, nil
 	}
 }
 
@@ -376,11 +381,11 @@ func (pwctl *PwCtrl) write(data []byte) error {
 	return nil
 }
 
-func (pwctl *PwCtrl) intializeConnection() (string, error) {
+func (pwctl *PwCtrl) intializeConnection() (int, error) {
 
 	err := pwctl.findSerialPort()
 	if err != nil {
-		return "", err
+		return ERROR_NO_PORT_FOUND, err
 	}
 
 	mode := &serial.Mode{
@@ -392,24 +397,24 @@ func (pwctl *PwCtrl) intializeConnection() (string, error) {
 
 	pwctl.serialPort, err = serial.Open(pwctl.portName, mode)
 	if err != nil {
-		return pwctl.portName, err
+		return ERROR_OPEN_PORT, err
 	}
 
 	pwctl.serialPort.SetReadTimeout(time.Duration(pwctl.readTimeOut) * time.Second)
 
 	err = pwctl.serialPort.ResetInputBuffer()
 	if err != nil {
-		return pwctl.portName, err
+		return ERROR_RESET_INBUFFER, err
 	}
 
 	err = pwctl.serialPort.ResetOutputBuffer()
 	if err != nil {
-		return pwctl.portName, err
+		return ERROR_RESET_OUTBUFFER, err
 	}
 
 	fmt.Println("- Serial port initialized : ", pwctl.portName)
 
-	return pwctl.portName, nil
+	return SUCCESS, nil
 }
 
 func (p *PwCtrl) findSerialPort() error {
@@ -427,7 +432,7 @@ func (p *PwCtrl) findSerialPort() error {
 	}
 
 	if len(portList) != 1 {
-		return errors.New("No or multiple ports found")
+		return errors.New("no or multiple ports found")
 	}
 
 	p.portName = portList[0]
