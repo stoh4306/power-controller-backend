@@ -186,8 +186,10 @@ func setPower(c *gin.Context) {
 	logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
-
-	logger.Infof("MCU response : %v", mesg)
+	if err != nil {
+		logger.Info(err.Error())
+	}
+	//logger.Infof("MCU response : %v", mesg)
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -234,7 +236,10 @@ func getPower(c *gin.Context) {
 	logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
-	logger.Infof("MCU response : %v", mesg)
+	//logger.Infof("MCU response : %v", mesg)
+	if err != nil {
+		logger.Info(err.Error())
+	}
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -311,7 +316,11 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		}
 		return ERROR_WRITING, err
 	} else {
-		n, err := pwctl.read([]byte(response))
+		tmpRes := make([]byte, 64)
+		n, err := pwctl.read(tmpRes)
+		response = string(tmpRes)
+		fmt.Println("n=", n)
+		fmt.Println("response = ", response[:n])
 
 		if err != nil {
 			return ERROR_READING, err
@@ -324,7 +333,7 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		}
 
 		var errMesg string
-		if response[len(response)-1] != '\n' {
+		if response[n-1] != '\n' {
 			logger.Info("WARNING : no newline character in response")
 			return SUCCESS, nil
 		} else if response[0] == '8' {
@@ -363,8 +372,8 @@ func (pwctl *PwCtrl) read(buff []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	//fmt.Println("Data received : size = ", n)
-	//fmt.Println(string(buff[:n]))
+	fmt.Println("Data received : size = ", n)
+	fmt.Println(buff[:n])
 	if n == 0 {
 		return 0, errors.New("no data received or timeout")
 	}
@@ -382,6 +391,9 @@ func (pwctl *PwCtrl) write(data []byte) error {
 }
 
 func (pwctl *PwCtrl) intializeConnection() (int, error) {
+	if pwctl.serialPort != nil {
+		pwctl.serialPort.Close()
+	}
 
 	err := pwctl.findSerialPort()
 	if err != nil {
