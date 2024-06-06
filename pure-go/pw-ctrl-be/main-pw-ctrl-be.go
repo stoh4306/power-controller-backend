@@ -230,6 +230,7 @@ func getPower(c *gin.Context) {
 		failResponse.Message = err.Error()
 		failResponse.ErrorType = "MCU Error or check cable"
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		return
 	}
 
 	var tmpResponse CmdResult
@@ -245,6 +246,7 @@ func getPower(c *gin.Context) {
 		failResponse.Message = "No response from MCU"
 		failResponse.ErrorType = "MCU Error or check cable"
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		return
 	}
 
 	var response McuResponse
