@@ -224,6 +224,12 @@ func getPower(c *gin.Context) {
 	logger.Infof("MCU response : %v", mesg)
 	if err != nil {
 		logger.Infof(err.Error())
+
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = err.Error()
+		failResponse.ErrorType = "MCU Error or check cable"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	}
 
 	var tmpResponse CmdResult
@@ -233,6 +239,12 @@ func getPower(c *gin.Context) {
 	mcuCode := 0
 	if len(tmpResponse.Res) > 0 {
 		mcuCode, _ = strconv.Atoi(tmpResponse.Res[:1])
+	} else {
+		var failResponse McuResponseFail
+		failResponse.State = "fail"
+		failResponse.Message = "No response from MCU"
+		failResponse.ErrorType = "MCU Error or check cable"
+		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 	}
 
 	var response McuResponse
@@ -292,15 +304,16 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 	err := pwctl.write([]byte(cmdStr))
 	if err != nil {
 		//TODO : re-initialzation code here
-		if pwctl.reIntializing == false {
+		if !pwctl.reIntializing {
 			go pwctl.reIntializeConnection()
 		}
 		return err
 	} else {
 		n, err := pwctl.read([]byte(response))
 		if n == 0 {
-			logger.Info("[SERIAL-COM] ERROR, no data received or timeout")
-			return errors.New("No data received or timeout")
+			errMesg := "[SERIAL-COM] ERROR" + err.Error()
+			logger.Info(errMesg)
+			return errors.New(errMesg)
 		}
 
 		if err == nil {
@@ -323,10 +336,10 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 
 func (pwctl *PwCtrl) reIntializeConnection() {
 	// To prevent multiple executions of re-initializing
-	if pwctl.reIntializing == false {
+	if !pwctl.reIntializing {
 		pwctl.reIntializing = true
 
-		for true {
+		for {
 			_, err := pwctl.intializeConnection()
 			if err == nil {
 				pwctl.reIntializing = false
@@ -343,8 +356,11 @@ func (pwctl *PwCtrl) read(buff []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("Data received : size = ", n)
-	fmt.Println(string(buff[:n]))
+	//fmt.Println("Data received : size = ", n)
+	//fmt.Println(string(buff[:n]))
+	if n == 0 {
+		return 0, errors.New("no data received or timeout")
+	}
 	return n, nil
 }
 
