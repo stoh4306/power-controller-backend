@@ -321,6 +321,7 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		tmpRes := make([]byte, 64)
 		n, err := pwctl.read(tmpRes)
 		response = string(tmpRes)
+		logger.Infof("Received data : %v", response[:n])
 		//fmt.Println("n=", n)
 		//fmt.Println("response = ", response[:n])
 
@@ -375,8 +376,8 @@ func (pwctl *PwCtrl) read(buff []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("Data received : size = ", n)
-	fmt.Println(buff[:n])
+	//fmt.Println("Data received : size = ", n)
+	//fmt.Println(buff[:n])
 	if n == 0 {
 		return 0, errors.New("no data received or timeout")
 	}
@@ -384,12 +385,12 @@ func (pwctl *PwCtrl) read(buff []byte) (int, error) {
 }
 
 func (pwctl *PwCtrl) write(data []byte) error {
-	n, err := pwctl.serialPort.Write(data)
+	_, err := pwctl.serialPort.Write(data)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("- Write data : size = ", n)
+	//fmt.Println("- Write data : size = ", n)
 	return nil
 }
 
