@@ -401,7 +401,9 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 
 	err := pwctl.findSerialPort()
 	if err != nil {
-		logger.Info(err.Error())
+		if !pwctl.reIntializing {
+			logger.Info(err.Error())
+		}
 		return ERROR_NO_PORT_FOUND, err
 	}
 
