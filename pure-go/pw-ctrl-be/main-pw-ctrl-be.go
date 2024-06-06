@@ -222,6 +222,9 @@ func getPower(c *gin.Context) {
 
 	err := pwCtrl.setCommand(tmpCmd, mesg, 100)
 	logger.Infof("MCU response : %v", mesg)
+	if err != nil {
+		logger.Infof(err.Error())
+	}
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -294,7 +297,12 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		}
 		return err
 	} else {
-		_, err = pwctl.read([]byte(response))
+		n, err := pwctl.read([]byte(response))
+		if n == 0 {
+			logger.Info("[SERIAL-COM] ERROR, no data received or timeout")
+			return errors.New("No data received or timeout")
+		}
+
 		if err == nil {
 			return nil
 		}
