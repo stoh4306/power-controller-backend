@@ -56,12 +56,12 @@ func main() {
 
 	for {
 		var inCmd string
-		fmt.Println("Enter a command : (ex) C0000")
+		fmt.Println("- Enter a command : (ex) C0000")
 		fmt.Scanln(&inCmd)
 		inCmd = inCmd + "\n"
 		//fmt.Println(([]byte)(inCmd))
 
-		if string(inCmd)[:4] == "exit" {
+		if len(inCmd) > 4 && string(inCmd)[:4] == "exit" {
 			break
 		}
 
@@ -80,9 +80,9 @@ func main() {
 			return
 		}
 
-		fmt.Println("- Response : ")
-		fmt.Println("  . in bytes  : ", n, byteResponse)
-		fmt.Println("  . in string : ", string(byteResponse))
+		fmt.Println("- MCU Response : ")
+		fmt.Println("  . in bytes  : #(bytes)=", n, byteResponse[:n])
+		fmt.Println("  . in string : ", string(byteResponse[:n]))
 	}
 
 	serialPort_.Close()
@@ -118,7 +118,7 @@ func initializePort() error {
 		return err
 	}
 
-	fmt.Println("Serial port re-initialized : ", portName_)
+	fmt.Println("- Serial port initialized : ", portName_)
 
 	return nil
 }
@@ -158,6 +158,7 @@ func printInputValues() {
 	fmt.Println(" - prefix:", portPrefix_)
 	fmt.Println(" - readTimeOut:", readTimeOut_)
 	fmt.Println(" - readMinByte:", readMinByte_)
+	fmt.Println("***********************")
 }
 
 func readInputs(args []string) error {
