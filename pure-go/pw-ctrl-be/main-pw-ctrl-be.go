@@ -183,7 +183,7 @@ func setPower(c *gin.Context) {
 	paramId := c.Param("id")
 	paramCmd := c.Param("cmd")
 	tmpCmd := paramCmd + paramId
-	logger.Infof("Sent command : %v", tmpCmd)
+	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
 	if err != nil {
@@ -233,13 +233,15 @@ func getPower(c *gin.Context) {
 
 	paramId := c.Param("id")
 	tmpCmd := "C" + paramId
-	logger.Infof("Sent command : %v", tmpCmd)
+	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
 	//logger.Infof("MCU response : %v", mesg)
 	if err != nil {
 		logger.Info(err.Error())
 	}
+
+	logger.Info()
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
@@ -308,9 +310,14 @@ func initialize(c *gin.Context) {
 }
 
 func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) (int, error) {
+	// NOTE : Clear input buffer before writing
+	pwctl.serialPort.ResetInputBuffer()
+
+	logger.Info("Sent command : ", cmdStr)
+
 	err := pwctl.write([]byte(cmdStr))
 	if err != nil {
-		//TODO : re-initialzation code here
+		//Re-initializing as a separate thread
 		if !pwctl.reIntializing {
 			logger.Info("Re-initializing serial port")
 			go pwctl.reIntializeConnection()
@@ -318,10 +325,13 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		logger.Info(err.Error())
 		return ERROR_WRITING, err
 	} else {
+		// NOTE : Some sleep before reading to avoid dropping in response
+		time.Sleep(200 * time.Millisecond)
+
 		tmpRes := make([]byte, 64)
 		n, err := pwctl.read(tmpRes)
 		response = string(tmpRes)
-		logger.Infof("Received data : %v", response[:n])
+		logger.Infof("Received data : %v", response[:1])
 		//fmt.Println("n=", n)
 		//fmt.Println("response = ", response[:n])
 
@@ -340,15 +350,21 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		if response[n-1] != '\n' {
 			logger.Info("WARNING : no newline character in response")
 			return SUCCESS, nil
-		} else if response[0] == '8' {
-			errMesg = "ERROR : failed to power on/off"
-			logger.Info(errMesg)
-			return ERROR_POWER_ONOFF, errors.New(errMesg)
 		} else if response[0] == '9' {
 			errMesg = "ERROR : unknown command or wrong rack-number"
 			logger.Info(errMesg)
 			return ERROR_UNKNOWN_CMD, errors.New(errMesg)
 		}
+		//---------------------------------------------------------
+		// NOTE : Ignore CODE=8
+		// because in many cases the power state is not
+		// correctly sent right after executing a power on/off command.
+		//---------------------------------------------------------
+		//else if response[0] == '8' {
+		//	errMesg = "ERROR : failed to power on/off"
+		//	logger.Info(errMesg)
+		//	return ERROR_POWER_ONOFF, errors.New(errMesg)
+		//}
 
 		return SUCCESS, nil
 	}
