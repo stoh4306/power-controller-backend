@@ -185,10 +185,10 @@ func setPower(c *gin.Context) {
 	tmpCmd := paramCmd + paramId
 	//logger.Infof("Sent command : %v", tmpCmd)
 
-	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
-	if err != nil {
-		logger.Info(err.Error())
-	}
+	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
+	//if err != nil {
+	//	logger.Info(err.Error())
+	//}
 	//logger.Infof("MCU response : %v", mesg)
 
 	var tmpResponse CmdResult
@@ -235,17 +235,18 @@ func getPower(c *gin.Context) {
 	tmpCmd := "C" + paramId
 	//logger.Infof("Sent command : %v", tmpCmd)
 
-	code, err := pwCtrl.setCommand(tmpCmd, mesg, 100)
+	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
 	//logger.Infof("MCU response : %v", mesg)
 	if err != nil {
 		logger.Info(err.Error())
 	}
 
-	logger.Info()
+	//logger.Info()
 
 	var tmpResponse CmdResult
 	tmpResponse.Cmd = tmpCmd
 	tmpResponse.Res = mesg
+	//logger.Info("RESPONSE :", mesg, len(mesg), len(tmpResponse.Res))
 
 	mcuCode := 0
 	if len(tmpResponse.Res) > 0 {
@@ -258,6 +259,7 @@ func getPower(c *gin.Context) {
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
 		return
 	}
+	//logger.Info("mcuCode=", mcuCode)
 
 	var response McuResponse
 	response.ElapsedSeconds = 0
@@ -309,7 +311,7 @@ func initialize(c *gin.Context) {
 	}
 }
 
-func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) (int, error) {
+func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int) (int, error) {
 	// NOTE : Clear input buffer before writing
 	pwctl.serialPort.ResetInputBuffer()
 
@@ -330,8 +332,8 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 
 		tmpRes := make([]byte, 64)
 		n, err := pwctl.read(tmpRes)
-		response = string(tmpRes)
-		logger.Infof("Received data : %v", response[:1])
+		*response = string(tmpRes)
+		logger.Info("Received data : ", (*response)[:1])
 		//fmt.Println("n=", n)
 		//fmt.Println("response = ", response[:n])
 
@@ -347,10 +349,10 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response string, sleepUTime int) 
 		}
 
 		var errMesg string
-		if response[n-1] != '\n' {
+		if (*response)[n-1] != '\n' {
 			logger.Info("WARNING : no newline character in response")
 			return SUCCESS, nil
-		} else if response[0] == '9' {
+		} else if (*response)[0] == '9' {
 			errMesg = "ERROR : unknown command or wrong rack-number"
 			logger.Info(errMesg)
 			return ERROR_UNKNOWN_CMD, errors.New(errMesg)
