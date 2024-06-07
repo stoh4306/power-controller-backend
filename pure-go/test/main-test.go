@@ -66,6 +66,8 @@ func main() {
 		}
 
 		// Write command to port
+		serialPort_.ResetInputBuffer()
+
 		_, err := serialPort_.Write([]byte(inCmd))
 		if err != nil {
 			fmt.Println("ERROR : ", err)
@@ -73,6 +75,8 @@ func main() {
 		}
 
 		// Read MCU reponse from port
+		time.Sleep(200 * time.Millisecond)
+
 		byteResponse := make([]byte, 64)
 		n, err := serialPort_.Read(byteResponse)
 		if err != nil {
@@ -83,6 +87,10 @@ func main() {
 		fmt.Println("- MCU Response : ")
 		fmt.Println("  . in bytes  : #(bytes)=", n, byteResponse[:n])
 		fmt.Println("  . in string : ", string(byteResponse[:n]))
+
+		if n < 3 || n != 3 || byteResponse[1] != 13 || byteResponse[2] != 10 {
+			fmt.Println("WARNING : Incomplete response!!!!")
+		}
 	}
 
 	serialPort_.Close()
