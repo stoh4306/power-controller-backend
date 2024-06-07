@@ -61,6 +61,10 @@ func main() {
 		inCmd = inCmd + "\n"
 		//fmt.Println(([]byte)(inCmd))
 
+		if string(inCmd)[:4] == "exit" {
+			break
+		}
+
 		// Write command to port
 		_, err := serialPort_.Write([]byte(inCmd))
 		if err != nil {
@@ -80,6 +84,8 @@ func main() {
 		fmt.Println("  . in bytes  : ", n, byteResponse)
 		fmt.Println("  . in string : ", string(byteResponse))
 	}
+
+	serialPort_.Close()
 }
 
 func initializePort() error {
