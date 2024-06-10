@@ -466,7 +466,7 @@ func (p *PwCtrl) findSerialPort() error {
 	portList := make([]string, 0)
 
 	for _, port := range ports {
-		if port[:len(p.portPrefix)] == p.portPrefix {
+		if len(port) >= len(p.portPrefix) && port[:len(p.portPrefix)] == p.portPrefix {
 			portList = append(portList, port)
 		}
 	}
