@@ -1,0 +1,1 @@
+docker run --rm -d --privileged -v /dev:/dev -p 8080:8080 --name pwctl-container pwctl-be-go
