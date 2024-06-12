@@ -10,3 +10,4 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/pwctl-be .
 CMD ["./pwctl-be", "ttyUSB", "5", "0"]
+#CMD ["./pwctl-be", "ttyACM", "5", "0"]
