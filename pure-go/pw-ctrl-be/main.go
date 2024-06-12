@@ -127,7 +127,7 @@ func main() {
 	_, err = pwCtrl.intializeConnection()
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		//return
 	}
 
 	// Set debuggin mode
@@ -313,7 +313,9 @@ func initialize(c *gin.Context) {
 
 func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int) (int, error) {
 	// NOTE : Clear input buffer before writing
-	pwctl.serialPort.ResetInputBuffer()
+	if pwctl.serialPort != nil {
+		pwctl.serialPort.ResetInputBuffer()
+	}
 
 	logger.Info("Sent command : ", cmdStr)
 
