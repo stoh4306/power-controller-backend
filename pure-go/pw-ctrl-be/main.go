@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"grida/pwctrlbe/docs"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,6 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"go.bug.st/serial"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 var logger = logrus.New()
@@ -140,7 +144,17 @@ func main() {
 		logger.Info("Running in Debugging mode")
 	}
 
+	// Set swagger info
+	docs.SwaggerInfo.Title = "Infra-External API"
+	docs.SwaggerInfo.Description = "This is a power-controller backend server"
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Host = "localhost:8080"
+	docs.SwaggerInfo.BasePath = ""
+	docs.SwaggerInfo.Schemes = []string{"http", "https"}
+
 	router := gin.Default()
+
+	setupSwagger(router)
 
 	router.GET("/set/:id/:cmd", setPower)
 	router.GET("/initialize", initialize)
@@ -168,6 +182,22 @@ func main() {
 	return*/
 }
 
+func setupSwagger(r *gin.Engine) {
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/swagger/index.html")
+	})
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+}
+
+// health godoc
+// @Summary      Check health state of the app
+// @Description  Check health state of the app
+// @Tags         infra-external
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  string "Healthy. Ready to handle request"
+// @Router       /health [get]
 func healthCheck(c *gin.Context) {
 	var healthResponse HealthResponse
 
@@ -176,6 +206,16 @@ func healthCheck(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, healthResponse)
 }
 
+// setPower godoc
+// @Summary      Power on/off workstation
+// @Description  Power on/off workstation with id
+// @Tags         infra-external
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Workstation ID in power-controller"
+// @Param 		 cmd  path		string true "Power controll command(S:power-on, Q:shutdown(OS), E:power-off(HW)"
+// @Success      200  {object}  string "Successfully power on/off workstation with the given id"
+// @Router       /set/{id}/{cmd} [get]
 func setPower(c *gin.Context) {
 	chars := make([]byte, 64)
 	mesg := string(chars)
@@ -227,6 +267,15 @@ func setPower(c *gin.Context) {
 	}
 }
 
+// getPower godoc
+// @Summary      Check power state of worktation
+// @Description  Check power state with workstation id
+// @Tags         infra-external
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Workstation ID in power-controller"
+// @Success      200  {object}  string "Power state(on/ff) identified"
+// @Router       /get/{id} [get]
 func getPower(c *gin.Context) {
 	chars := make([]byte, 64)
 	mesg := string(chars)
@@ -257,6 +306,7 @@ func getPower(c *gin.Context) {
 		failResponse.Message = err.Error()
 		failResponse.ErrorType = strconv.Itoa(code)
 		c.IndentedJSON(http.StatusInternalServerError, failResponse)
+		//httputil.NewError(c, http.StatusInternalServerError, err)
 		return
 	}
 	//logger.Info("mcuCode=", mcuCode)
@@ -288,6 +338,14 @@ func getPower(c *gin.Context) {
 	}
 }
 
+// intialize godoc
+// @Summary      Initialize serial port
+// @Description  Initialize serial port
+// @Tags         infra-external
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  string "Successfully initialized the serial port"
+// @Router       /initialize [get]
 func initialize(c *gin.Context) {
 	code, err := pwCtrl.intializeConnection()
 	if err != nil {
