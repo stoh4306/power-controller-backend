@@ -392,6 +392,10 @@ func (pwctl *PwCtrl) reIntializeConnection() {
 }
 
 func (pwctl *PwCtrl) read(buff []byte) (int, error) {
+	if pwctl.serialPort == nil {
+		return 0, errors.New("serial port not initialized")
+	}
+
 	n, err := pwctl.serialPort.Read(buff)
 	if err != nil {
 		return 0, err
