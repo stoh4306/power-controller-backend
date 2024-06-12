@@ -405,6 +405,9 @@ func (pwctl *PwCtrl) read(buff []byte) (int, error) {
 }
 
 func (pwctl *PwCtrl) write(data []byte) error {
+	if pwctl.serialPort == nil {
+		return errors.New("serial port not initialized")
+	}
 	_, err := pwctl.serialPort.Write(data)
 	if err != nil {
 		return err
