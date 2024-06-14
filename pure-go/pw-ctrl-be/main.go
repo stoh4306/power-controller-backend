@@ -46,8 +46,23 @@ type McuResponseAllInOne struct {
 	Debug            string `json:"debug"`
 }
 
-type HealthResponse struct {
+type LivenessState struct {
 	Status string `json:"status"`
+}
+
+type ReadinessState struct {
+	Status string `json:"status"`
+}
+
+type HealthComponent struct {
+	Liveness  LivenessState  `json:"livenessState"`
+	Readiness ReadinessState `json:"readinessState"`
+}
+
+type HealthResponse struct {
+	Status     string          `json:"status"`
+	Components HealthComponent `json:"components"`
+	Groups     []string        `json:"groups"`
 }
 
 type PwCtrl struct {
@@ -149,18 +164,20 @@ func main() {
 	docs.SwaggerInfo.Description = "This is a power-controller backend server"
 	docs.SwaggerInfo.Version = "1.0"
 	docs.SwaggerInfo.Host = "localhost:8080"
-	docs.SwaggerInfo.BasePath = ""
+	docs.SwaggerInfo.BasePath = "/api/v1/infra-external/power"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
 	router := gin.Default()
 
 	setupSwagger(router)
 
-	router.GET("/set/:id/:cmd", setPower)
-	router.GET("/initialize", initialize)
-	router.GET("/get/:id", getPower)
+	basePath := "/api/v1/infra-external/power"
 
-	router.GET("/health", healthCheck)
+	router.GET(basePath+"/set/:id/:cmd", setPower)
+	router.GET(basePath+"/initialize", initialize)
+	router.GET(basePath+"/get/:id", getPower)
+
+	router.GET("/actuator/health", healthCheck)
 
 	router.Run(":8080")
 
@@ -201,8 +218,11 @@ func setupSwagger(r *gin.Engine) {
 func healthCheck(c *gin.Context) {
 	var healthResponse HealthResponse
 
-	healthResponse.Status = "healthy"
-
+	healthResponse.Status = "UP"
+	healthResponse.Components.Liveness.Status = "UP"
+	healthResponse.Components.Readiness.Status = "UP"
+	healthResponse.Groups = append(healthResponse.Groups, "liveness")
+	healthResponse.Groups = append(healthResponse.Groups, "readiness")
 	c.IndentedJSON(http.StatusOK, healthResponse)
 }
 
