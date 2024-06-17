@@ -77,6 +77,7 @@ type PwCtrl struct {
 }
 
 var debugginMode_ bool
+var inComMCU_ bool
 
 // Error code
 const SUCCESS = 0
@@ -87,8 +88,9 @@ const ERROR_NO_PORT_FOUND = 101
 const ERROR_OPEN_PORT = 102
 const ERROR_RESET_OUTBUFFER = 103
 const ERROR_RESET_INBUFFER = 104
-const ERROR_READING = 200
-const ERROR_NO_DATA_READ = 201
+const ERROR_PORT_BUSY = 200
+const ERROR_READING = 201
+const ERROR_NO_DATA_READ = 202
 
 // PwCtrl constructor
 //func NewPwCtrl(prefix string, timeout int, minbyte int) *PwCtrl {
@@ -163,9 +165,12 @@ func main() {
 	docs.SwaggerInfo.Title = "Infra-External API"
 	docs.SwaggerInfo.Description = "This is a power-controller backend server"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost:8080"
+	docs.SwaggerInfo.Host = "localhost" // Mote : 80 port is port-forwarded to 8080 in container
 	docs.SwaggerInfo.BasePath = "/api/v1/infra-external/power"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
+
+	//
+	inComMCU_ = false
 
 	router := gin.Default()
 
@@ -246,9 +251,18 @@ func setPower(c *gin.Context) {
 	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
-	//if err != nil {
-	//	logger.Info(err.Error())
-	//}
+	if err != nil {
+		logger.Info(err.Error())
+		if code == ERROR_PORT_BUSY {
+			var failResponse McuResponseFail
+
+			failResponse.State = "fail"
+			failResponse.Message = err.Error()
+			failResponse.ErrorType = strconv.Itoa(code)
+			c.IndentedJSON(http.StatusRequestTimeout, failResponse)
+			return
+		}
+	}
 	//logger.Infof("MCU response : %v", mesg)
 
 	var tmpResponse CmdResult
@@ -308,6 +322,16 @@ func getPower(c *gin.Context) {
 	//logger.Infof("MCU response : %v", mesg)
 	if err != nil {
 		logger.Info(err.Error())
+
+		if code == ERROR_PORT_BUSY {
+			var failResponse McuResponseFail
+
+			failResponse.State = "fail"
+			failResponse.Message = err.Error()
+			failResponse.ErrorType = strconv.Itoa(code)
+			c.IndentedJSON(http.StatusRequestTimeout, failResponse)
+			return
+		}
 	}
 
 	//logger.Info()
@@ -390,6 +414,14 @@ func initialize(c *gin.Context) {
 }
 
 func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int) (int, error) {
+	if inComMCU_ {
+		error := errors.New("Busy serial communication")
+		//logger.Info(error)
+		return ERROR_PORT_BUSY, error
+	} else {
+		inComMCU_ = true
+	}
+
 	// NOTE : Clear input buffer before writing
 	if pwctl.serialPort != nil {
 		pwctl.serialPort.ResetInputBuffer()
@@ -405,6 +437,8 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 			go pwctl.reIntializeConnection()
 		}
 		logger.Info(err.Error())
+
+		inComMCU_ = false
 		return ERROR_WRITING, err
 	} else {
 		// NOTE : Some sleep before reading to avoid dropping in response
@@ -419,22 +453,27 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 
 		if err != nil {
 			logger.Info(err.Error())
+
+			inComMCU_ = false
 			return ERROR_READING, err
 		}
 
 		if n == 0 {
 			errMesg := "ERROR : " + err.Error()
 			logger.Info(errMesg)
+			inComMCU_ = false
 			return ERROR_NO_DATA_READ, errors.New(err.Error())
 		}
 
 		var errMesg string
 		if (*response)[n-1] != '\n' {
 			logger.Info("WARNING : no newline character in response")
+			inComMCU_ = false
 			return SUCCESS, nil
 		} else if (*response)[0] == '9' {
 			errMesg = "ERROR : unknown command or wrong rack-number"
 			logger.Info(errMesg)
+			inComMCU_ = false
 			return ERROR_UNKNOWN_CMD, errors.New(errMesg)
 		}
 		//---------------------------------------------------------
@@ -448,6 +487,7 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 		//	return ERROR_POWER_ONOFF, errors.New(errMesg)
 		//}
 
+		inComMCU_ = false
 		return SUCCESS, nil
 	}
 }
@@ -461,6 +501,7 @@ func (pwctl *PwCtrl) reIntializeConnection() {
 			_, err := pwctl.intializeConnection()
 			if err == nil {
 				pwctl.reIntializing = false
+				inComMCU_ = false
 				break
 			}
 
