@@ -166,7 +166,7 @@ func main() {
 	docs.SwaggerInfo.Title = "Infra-External API"
 	docs.SwaggerInfo.Description = "This is a power-controller backend server"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost"
+	docs.SwaggerInfo.Host = "localhost:8080"
 	docs.SwaggerInfo.BasePath = "/api/v1/infra-external/power"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
@@ -218,14 +218,6 @@ func setupSwagger(r *gin.Engine) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }
 
-// health godoc
-// @Summary      Check health state of the app
-// @Description  Check health state of the app
-// @Tags         infra-external
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  string "Healthy. Ready to handle request"
-// @Router       /health [get]
 func healthCheck(c *gin.Context) {
 	var healthResponse HealthResponse
 
