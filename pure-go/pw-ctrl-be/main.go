@@ -205,6 +205,11 @@ func main() {
 	return*/
 }
 
+func zeroPad(number int, totalLength int) string {
+	tmpStr := strconv.FormatInt(int64(number), 10)
+	return fmt.Sprintf("%05s", tmpStr)
+}
+
 func setupSwagger(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/swagger/index.html")
@@ -248,7 +253,9 @@ func setPower(c *gin.Context) {
 
 	paramId := c.Param("id")
 	paramCmd := c.Param("cmd")
-	tmpCmd := paramCmd + paramId
+
+	tmpParamId, _ := strconv.Atoi(string(paramId))
+	tmpCmd := paramCmd + zeroPad(tmpParamId, 4)
 	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
@@ -316,7 +323,9 @@ func getPower(c *gin.Context) {
 	mesg := string(chars)
 
 	paramId := c.Param("id")
-	tmpCmd := "C" + paramId
+
+	tmpParamId, _ := strconv.Atoi(string(paramId))
+	tmpCmd := "C" + zeroPad(tmpParamId, 4)
 	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
