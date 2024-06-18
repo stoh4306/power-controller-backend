@@ -205,9 +205,9 @@ func main() {
 	return*/
 }
 
-func zeroPad(number int, totalLength int) string {
+func zeroPad(number int) string {
 	tmpStr := strconv.FormatInt(int64(number), 10)
-	return fmt.Sprintf("%05s", tmpStr)
+	return fmt.Sprintf("%04s", tmpStr)
 }
 
 func setupSwagger(r *gin.Engine) {
@@ -255,7 +255,7 @@ func setPower(c *gin.Context) {
 	paramCmd := c.Param("cmd")
 
 	tmpParamId, _ := strconv.Atoi(string(paramId))
-	tmpCmd := paramCmd + zeroPad(tmpParamId, 4)
+	tmpCmd := paramCmd + zeroPad(tmpParamId)
 	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
@@ -325,7 +325,7 @@ func getPower(c *gin.Context) {
 	paramId := c.Param("id")
 
 	tmpParamId, _ := strconv.Atoi(string(paramId))
-	tmpCmd := "C" + zeroPad(tmpParamId, 4)
+	tmpCmd := "C" + zeroPad(tmpParamId)
 	//logger.Infof("Sent command : %v", tmpCmd)
 
 	code, err := pwCtrl.setCommand(tmpCmd, &mesg, 100)
