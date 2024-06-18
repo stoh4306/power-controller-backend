@@ -324,13 +324,20 @@ func getPower(c *gin.Context) {
 	if err != nil {
 		logger.Info(err.Error())
 
-		if code == ERROR_PORT_BUSY || code == ERROR_PORT_NOT_SPECIFIED {
+		if code == ERROR_PORT_BUSY {
+			var failResponse McuResponseFail
+			failResponse.State = "fail"
+			failResponse.Message = err.Error()
+			failResponse.ErrorType = strconv.Itoa(code)
+			c.IndentedJSON(http.StatusRequestTimeout, failResponse)
+			return
+		} else if code == ERROR_PORT_NOT_SPECIFIED {
 			var failResponse McuResponseFail
 
 			failResponse.State = "fail"
 			failResponse.Message = err.Error()
 			failResponse.ErrorType = strconv.Itoa(code)
-			c.IndentedJSON(http.StatusRequestTimeout, failResponse)
+			c.IndentedJSON(http.StatusInternalServerError, failResponse)
 			return
 		}
 	}
@@ -453,10 +460,12 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 
 		tmpRes := make([]byte, 64)
 		n, err := pwctl.read(tmpRes)
-		*response = string(tmpRes)
-		logger.Info("Received data : ", (*response)[:1])
-		//fmt.Println("n=", n)
-		//fmt.Println("response = ", response[:n])
+		if n == 0 {
+			errMesg := "ERROR : no data read"
+			logger.Info(errMesg)
+			inComMCU_ = false
+			return ERROR_NO_DATA_READ, errors.New(errMesg)
+		}
 
 		if err != nil {
 			logger.Info(err.Error())
@@ -465,20 +474,17 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 			return ERROR_READING, err
 		}
 
-		if n == 0 {
-			errMesg := "ERROR : " + err.Error()
-			logger.Info(errMesg)
-			inComMCU_ = false
-			return ERROR_NO_DATA_READ, errors.New(err.Error())
-		}
+		*response = string(tmpRes)
+		logger.Info("Received data : ", (*response)[:1])
+		//fmt.Println("n=", n)
+		//fmt.Println("response = ", response[:n])
 
-		var errMesg string
 		if (*response)[n-1] != '\n' {
 			logger.Info("WARNING : no newline character in response")
 			inComMCU_ = false
 			return SUCCESS, nil
 		} else if (*response)[0] == '9' {
-			errMesg = "ERROR : unknown command or wrong rack-number"
+			errMesg := "ERROR : unknown command or wrong rack-number"
 			logger.Info(errMesg)
 			inComMCU_ = false
 			return ERROR_UNKNOWN_CMD, errors.New(errMesg)
