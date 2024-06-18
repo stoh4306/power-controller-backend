@@ -166,7 +166,7 @@ func main() {
 	docs.SwaggerInfo.Title = "Infra-External API"
 	docs.SwaggerInfo.Description = "This is a power-controller backend server"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost" // Mote : 80 port is port-forwarded to 8080 in container
+	docs.SwaggerInfo.Host = "localhost"
 	docs.SwaggerInfo.BasePath = "/api/v1/infra-external/power"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
