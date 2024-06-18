@@ -88,6 +88,7 @@ const ERROR_NO_PORT_FOUND = 101
 const ERROR_OPEN_PORT = 102
 const ERROR_RESET_OUTBUFFER = 103
 const ERROR_RESET_INBUFFER = 104
+const ERROR_PORT_NOT_SPECIFIED = 105
 const ERROR_PORT_BUSY = 200
 const ERROR_READING = 201
 const ERROR_NO_DATA_READ = 202
@@ -323,7 +324,7 @@ func getPower(c *gin.Context) {
 	if err != nil {
 		logger.Info(err.Error())
 
-		if code == ERROR_PORT_BUSY {
+		if code == ERROR_PORT_BUSY || code == ERROR_PORT_NOT_SPECIFIED {
 			var failResponse McuResponseFail
 
 			failResponse.State = "fail"
@@ -424,7 +425,13 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 
 	// NOTE : Clear input buffer before writing
 	if pwctl.serialPort != nil {
-		pwctl.serialPort.ResetInputBuffer()
+		if pwctl.serialPort.ResetInputBuffer() != nil {
+			inComMCU_ = false
+			return ERROR_RESET_INBUFFER, errors.New("Failed to reset input buffer")
+		}
+	} else {
+		inComMCU_ = false
+		return ERROR_PORT_NOT_SPECIFIED, errors.New("Serial port not specified")
 	}
 
 	logger.Info("Sent command : ", cmdStr)
@@ -496,6 +503,7 @@ func (pwctl *PwCtrl) reIntializeConnection() {
 	// To prevent multiple executions of re-initializing
 	if !pwctl.reIntializing {
 		pwctl.reIntializing = true
+		inComMCU_ = true
 
 		for {
 			_, err := pwctl.intializeConnection()
