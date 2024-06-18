@@ -13,4 +13,4 @@ WORKDIR /root/
 COPY --from=builder /app/pwctl-be .
 #COPY --from=builder /app/docs/* ./docs
 CMD ["./pwctl-be", "ttyACM", "5", "0"]
-#CMD ["./pwctl-be", "ttyACM", "5", "0"]
+#CMD ["./pwctl-be", "ttyUSB", "5", "0"]

@@ -166,7 +166,7 @@ func main() {
 	docs.SwaggerInfo.Title = "Infra-External API"
 	docs.SwaggerInfo.Description = "This is a power-controller backend server"
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost:8080"
+	docs.SwaggerInfo.Host = "localhost"
 	docs.SwaggerInfo.BasePath = "/api/v1/infra-external/power"
 	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
@@ -238,6 +238,9 @@ func healthCheck(c *gin.Context) {
 // @Param        id   path      int  true  "Workstation ID in power-controller"
 // @Param 		 cmd  path		string true "Power controll command(S:power-on, Q:shutdown(OS), E:power-off(HW)"
 // @Success      200  {object}  string "Successfully power on/off workstation with the given id"
+// @Failure		 408  {object}  string "Port is busy"
+// @Failure 	 400  {object}	string "Unknown command or wrong rack number"
+// @Failure 	 500  {object}	string "Internal server error"
 // @Router       /set/{id}/{cmd} [get]
 func setPower(c *gin.Context) {
 	chars := make([]byte, 64)
@@ -309,6 +312,9 @@ func setPower(c *gin.Context) {
 // @Produce      json
 // @Param        id   path      int  true  "Workstation ID in power-controller"
 // @Success      200  {object}  string "Power state(on/ff) identified"
+// @Failure		 408  {object}  string "Port is busy"
+// @Failure 	 400  {object}	string "Unknown command or wrong rack number"
+// @Failure 	 500  {object}	string "Internal server error"
 // @Router       /get/{id} [get]
 func getPower(c *gin.Context) {
 	chars := make([]byte, 64)
@@ -398,6 +404,7 @@ func getPower(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Success      200  {object}  string "Successfully initialized the serial port"
+// @Failure		 500  {object}  string "Failed to initialize the serial port"
 // @Router       /initialize [get]
 func initialize(c *gin.Context) {
 	code, err := pwCtrl.intializeConnection()
