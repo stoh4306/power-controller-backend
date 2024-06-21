@@ -66,7 +66,7 @@ type HealthResponse struct {
 }
 
 type PwCtrl struct {
-	portPrefix         string
+	//portPrefix         string
 	readTimeOut        int
 	readMinByte        int
 	portName           string
@@ -92,6 +92,7 @@ const ERROR_PORT_NOT_SPECIFIED = 105
 const ERROR_PORT_BUSY = 200
 const ERROR_READING = 201
 const ERROR_NO_DATA_READ = 202
+const ERROR_IN_INITAILIZING = 210
 
 // PwCtrl constructor
 //func NewPwCtrl(prefix string, timeout int, minbyte int) *PwCtrl {
@@ -100,6 +101,8 @@ const ERROR_NO_DATA_READ = 202
 
 var pwCtrl PwCtrl
 
+var portPrefix_ []string
+
 func main() {
 	fmt.Println("******************************")
 	fmt.Println("Power-Controller-Backend")
@@ -107,25 +110,39 @@ func main() {
 
 	args := os.Args
 
-	if len(args) < 4 {
-		fmt.Println("- usage : pwctl <arg1> <arg2> <arg3>")
-		fmt.Println(" . arg1 : port name prefix (ex: ttyACM or ttyUSB)")
-		fmt.Println(" . arg2 : max. reading time in deciseconds (10decisec = 1sec)")
-		fmt.Println(" . arg3 : minimum bytes to read")
+	if len(args) < 3 {
+		fmt.Println("- usage : pwctl <arg1> <arg2> <arg3>(optional)")
+		fmt.Println(" . arg1 : max. reading time in seconds")
+		fmt.Println(" . arg2 : minimum bytes to read")
+		fmt.Println(" . arg3 : (optional) port name prefix (ex: ttyACM or ttyUSB)")
 		fmt.Println(" . (example) pwctl ttyACM 100 0")
 		return
 	}
+
+	if len(args) < 4 {
+		portPrefix_ = append(portPrefix_, "/dev/ttyACM")
+		portPrefix_ = append(portPrefix_, "/dev/ttyUSB")
+		logger.Info(
+			"Started with parameters : " + args[1] + ", " + args[2] + " ttyACM/ttyUSB")
+	} else {
+		portPrefix_ = append(portPrefix_, "/dev/"+args[3])
+		logger.Info(
+			"Started with parameters : " + args[1] + ", " + args[2] + ", " + args[3])
+	}
+
+	fmt.Println("portPrefix : ", len(portPrefix_))
+	for i := 0; i < len(portPrefix_); i++ {
+		fmt.Print(portPrefix_[i], " ")
+	}
+	fmt.Println()
 
 	logger.Formatter = &logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 	}
 
-	logger.Info(
-		"Started with parameters : " + args[1] + ", " + args[2] + ", " + args[3])
-
 	pwCtrl = PwCtrl{
-		portPrefix:  "/dev/ttyACM",
+		//portPrefix:  "/dev/ttyACM",
 		readTimeOut: 10,
 		readMinByte: 0,
 
@@ -430,6 +447,10 @@ func initialize(c *gin.Context) {
 }
 
 func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int) (int, error) {
+	if pwctl.reIntializing {
+		return ERROR_IN_INITAILIZING, errors.New("in re-initializing")
+	}
+
 	if inComMCU_ {
 		error := errors.New("Busy serial communication")
 		//logger.Info(error)
@@ -439,14 +460,30 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 	}
 
 	// NOTE : Clear input buffer before writing
+	errCode := 0
+	error := errors.New("")
+
 	if pwctl.serialPort != nil {
 		if pwctl.serialPort.ResetInputBuffer() != nil {
+			errCode = ERROR_RESET_INBUFFER
+			error = errors.New("Failed to reset input buffer")
 			inComMCU_ = false
-			return ERROR_RESET_INBUFFER, errors.New("Failed to reset input buffer")
+			//return ERROR_RESET_INBUFFER, errors.New("Failed to reset input buffer")
 		}
 	} else {
 		inComMCU_ = false
-		return ERROR_PORT_NOT_SPECIFIED, errors.New("Serial port not specified")
+		errCode = ERROR_PORT_NOT_SPECIFIED
+		error = errors.New("Serial port not specified")
+		//return ERROR_PORT_NOT_SPECIFIED, errors.New("Serial port not specified")
+	}
+
+	if errCode != 0 {
+		if !pwctl.reIntializing {
+			logger.Info("Re-initializing serial port")
+			go pwctl.reIntializeConnection()
+		} else {
+			return errCode, error
+		}
 	}
 
 	logger.Info("Sent command : ", cmdStr)
@@ -616,8 +653,11 @@ func (p *PwCtrl) findSerialPort() error {
 	portList := make([]string, 0)
 
 	for _, port := range ports {
-		if len(port) >= len(p.portPrefix) && port[:len(p.portPrefix)] == p.portPrefix {
-			portList = append(portList, port)
+		for i := 0; i < len(portPrefix_); i++ {
+			prefix := portPrefix_[i]
+			if len(port) >= len(prefix) && port[:len(prefix)] == prefix {
+				portList = append(portList, port)
+			}
 		}
 	}
 
@@ -632,7 +672,7 @@ func (p *PwCtrl) findSerialPort() error {
 }
 
 func (p *PwCtrl) printValues() {
-	fmt.Println("prefix:", p.portPrefix)
+	//fmt.Println("prefix:", p.portPrefix)
 	fmt.Println("readTimeOut:", p.readTimeOut)
 	fmt.Println("readMinByte:", p.readMinByte)
 	fmt.Println("portName:", p.portName)
@@ -641,17 +681,21 @@ func (p *PwCtrl) printValues() {
 }
 
 func readInputs(args []string) error {
-	pwCtrl.portPrefix = "/dev/" + args[1]
-	fmt.Println("portPrefix = ", pwCtrl.portPrefix)
+	//pwCtrl.portPrefix = "/dev/" + args[1]
+	fmt.Print("portPrefix = ")
+	for i := 0; i < len(portPrefix_); i++ {
+		fmt.Print(portPrefix_[i])
+	}
+	fmt.Println()
 
 	var err error
-	pwCtrl.readTimeOut, err = strconv.Atoi(args[2])
+	pwCtrl.readTimeOut, err = strconv.Atoi(args[1])
 	if err != nil {
 		return err
 	}
 	fmt.Println("readTimeOut = ", pwCtrl.readTimeOut)
 
-	pwCtrl.readMinByte, err = strconv.Atoi(args[3])
+	pwCtrl.readMinByte, err = strconv.Atoi(args[2])
 	if err != nil {
 		return err
 	}
