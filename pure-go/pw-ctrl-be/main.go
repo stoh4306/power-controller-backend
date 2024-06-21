@@ -201,6 +201,7 @@ func main() {
 	router.GET(basePath+"/get/:id", getPower)
 
 	router.GET("/actuator/health", healthCheck)
+	router.GET("/ready", readyCheck)
 
 	router.Run(":8080")
 
@@ -235,12 +236,27 @@ func setupSwagger(r *gin.Engine) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }
 
+func readyCheck(c *gin.Context) {
+	var readinessState ReadinessState
+	if pwCtrl.connectInitialized {
+		readinessState.Status = "UP"
+		c.IndentedJSON(http.StatusOK, readinessState)
+	} else {
+		readinessState.Status = "DOWN"
+		c.IndentedJSON(http.StatusInternalServerError, readinessState)
+	}
+}
+
 func healthCheck(c *gin.Context) {
 	var healthResponse HealthResponse
 
 	healthResponse.Status = "UP"
 	healthResponse.Components.Liveness.Status = "UP"
-	healthResponse.Components.Readiness.Status = "UP"
+	if pwCtrl.connectInitialized {
+		healthResponse.Components.Readiness.Status = "UP"
+	} else {
+		healthResponse.Components.Readiness.Status = "DOWN"
+	}
 	healthResponse.Groups = append(healthResponse.Groups, "liveness")
 	healthResponse.Groups = append(healthResponse.Groups, "readiness")
 	c.IndentedJSON(http.StatusOK, healthResponse)
@@ -478,6 +494,7 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 	}
 
 	if errCode != 0 {
+		pwctl.connectInitialized = false
 		if !pwctl.reIntializing {
 			logger.Info("Re-initializing serial port")
 			go pwctl.reIntializeConnection()
@@ -490,6 +507,8 @@ func (pwctl *PwCtrl) setCommand(cmdStr string, response *string, sleepUTime int)
 
 	err := pwctl.write([]byte(cmdStr))
 	if err != nil {
+		pwctl.connectInitialized = false
+
 		//Re-initializing as a separate thread
 		if !pwctl.reIntializing {
 			logger.Info("Re-initializing serial port")
@@ -559,6 +578,7 @@ func (pwctl *PwCtrl) reIntializeConnection() {
 		for {
 			_, err := pwctl.intializeConnection()
 			if err == nil {
+				pwctl.connectInitialized = true
 				pwctl.reIntializing = false
 				inComMCU_ = false
 				break
@@ -639,6 +659,7 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 		return ERROR_RESET_OUTBUFFER, err
 	}
 
+	pwctl.connectInitialized = true
 	logger.Info("Serial port re-initialized : ", pwctl.portName)
 
 	return SUCCESS, nil
@@ -647,6 +668,7 @@ func (pwctl *PwCtrl) intializeConnection() (int, error) {
 func (p *PwCtrl) findSerialPort() error {
 	ports, err := serial.GetPortsList()
 	if err != nil {
+		p.connectInitialized = false
 		return err
 	}
 
@@ -662,6 +684,7 @@ func (p *PwCtrl) findSerialPort() error {
 	}
 
 	if len(portList) != 1 {
+		p.connectInitialized = false
 		return errors.New("no or multiple ports found")
 	}
 
